@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 100;
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
@@ -63,24 +63,18 @@
 /* Begin PBXFrameworksBuildPhase section */
 		5E0699C82FAFEFEA008E21DB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E0699D92FAFEFEC008E21DB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E0699E32FAFEFEC008E21DB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -118,14 +112,10 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			fileSystemSynchronizedGroups = (
 				5E0699CD2FAFEFEA008E21DB /* Agedcare-shared */,
 			);
 			name = "Agedcare-shared";
-			packageProductDependencies = (
-			);
 			productName = "Agedcare-shared";
 			productReference = 5E0699CB2FAFEFEA008E21DB /* Agedcare-shared.app */;
 			productType = "com.apple.product-type.application";
@@ -147,8 +137,6 @@
 				5E0699DF2FAFEFEC008E21DB /* Agedcare-sharedTests */,
 			);
 			name = "Agedcare-sharedTests";
-			packageProductDependencies = (
-			);
 			productName = "Agedcare-sharedTests";
 			productReference = 5E0699DC2FAFEFEC008E21DB /* Agedcare-sharedTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -170,8 +158,6 @@
 				5E0699E92FAFEFEC008E21DB /* Agedcare-sharedUITests */,
 			);
 			name = "Agedcare-sharedUITests";
-			packageProductDependencies = (
-			);
 			productName = "Agedcare-sharedUITests";
 			productReference = 5E0699E62FAFEFEC008E21DB /* Agedcare-sharedUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -185,6 +171,7 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
+				ORGANIZATIONNAME = wcs;
 				TargetAttributes = {
 					5E0699CA2FAFEFEA008E21DB = {
 						CreatedOnToolsVersion = 26.4.1;
@@ -208,7 +195,7 @@
 			);
 			mainGroup = 5E0699C22FAFEFEA008E21DB;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 100;
 			productRefGroup = 5E0699CC2FAFEFEA008E21DB /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -223,48 +210,36 @@
 /* Begin PBXResourcesBuildPhase section */
 		5E0699C92FAFEFEA008E21DB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E0699DA2FAFEFEC008E21DB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E0699E42FAFEFEC008E21DB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		5E0699C72FAFEFEA008E21DB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E0699D82FAFEFEC008E21DB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E0699E22FAFEFEC008E21DB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
@@ -282,7 +257,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		5E0699F02FAFEFEC008E21DB /* Debug */ = {
+		5E0699F02FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-shared" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -294,6 +269,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Agedcare-shared/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "agedcare-shared";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -316,7 +293,7 @@
 			};
 			name = Debug;
 		};
-		5E0699F12FAFEFEC008E21DB /* Release */ = {
+		5E0699F12FAFEFEC008E21DB /* Release configuration for PBXNativeTarget "Agedcare-shared" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -328,6 +305,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Agedcare-shared/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "agedcare-shared";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -350,7 +329,7 @@
 			};
 			name = Release;
 		};
-		5E0699F22FAFEFEC008E21DB /* Debug */ = {
+		5E0699F22FAFEFEC008E21DB /* Debug configuration for PBXProject "Agedcare-shared" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -414,7 +393,7 @@
 			};
 			name = Debug;
 		};
-		5E0699F32FAFEFEC008E21DB /* Release */ = {
+		5E0699F32FAFEFEC008E21DB /* Release configuration for PBXProject "Agedcare-shared" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -471,7 +450,7 @@
 			};
 			name = Release;
 		};
-		5E0699F52FAFEFEC008E21DB /* Debug */ = {
+		5E0699F52FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-sharedTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -493,7 +472,7 @@
 			};
 			name = Debug;
 		};
-		5E0699F62FAFEFEC008E21DB /* Release */ = {
+		5E0699F62FAFEFEC008E21DB /* Release configuration for PBXNativeTarget "Agedcare-sharedTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -515,7 +494,7 @@
 			};
 			name = Release;
 		};
-		5E0699F82FAFEFEC008E21DB /* Debug */ = {
+		5E0699F82FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-sharedUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -535,7 +514,7 @@
 			};
 			name = Debug;
 		};
-		5E0699F92FAFEFEC008E21DB /* Release */ = {
+		5E0699F92FAFEFEC008E21DB /* Release configuration for PBXNativeTarget "Agedcare-sharedUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -561,37 +540,33 @@
 		5E0699C62FAFEFEA008E21DB /* Build configuration list for PBXProject "Agedcare-shared" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				5E0699F22FAFEFEC008E21DB /* Debug */,
-				5E0699F32FAFEFEC008E21DB /* Release */,
+				5E0699F22FAFEFEC008E21DB /* Debug configuration for PBXProject "Agedcare-shared" */,
+				5E0699F32FAFEFEC008E21DB /* Release configuration for PBXProject "Agedcare-shared" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		5E0699EF2FAFEFEC008E21DB /* Build configuration list for PBXNativeTarget "Agedcare-shared" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				5E0699F02FAFEFEC008E21DB /* Debug */,
-				5E0699F12FAFEFEC008E21DB /* Release */,
+				5E0699F02FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-shared" */,
+				5E0699F12FAFEFEC008E21DB /* Release configuration for PBXNativeTarget "Agedcare-shared" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		5E0699F42FAFEFEC008E21DB /* Build configuration list for PBXNativeTarget "Agedcare-sharedTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				5E0699F52FAFEFEC008E21DB /* Debug */,
-				5E0699F62FAFEFEC008E21DB /* Release */,
+				5E0699F52FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-sharedTests" */,
+				5E0699F62FAFEFEC008E21DB /* Release configuration for PBXNativeTarget "Agedcare-sharedTests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		5E0699F72FAFEFEC008E21DB /* Build configuration list for PBXNativeTarget "Agedcare-sharedUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				5E0699F82FAFEFEC008E21DB /* Debug */,
-				5E0699F92FAFEFEC008E21DB /* Release */,
+				5E0699F82FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-sharedUITests" */,
+				5E0699F92FAFEFEC008E21DB /* Release configuration for PBXNativeTarget "Agedcare-sharedUITests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */

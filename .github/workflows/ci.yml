@@ -1,0 +1,105 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: List available simulators
+        run: xcrun simctl list devices available | head -20
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Agedcare-shared.xcodeproj \
+            -scheme Agedcare-shared \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Run Unit Tests
+        run: |
+          xcodebuild test \
+            -project Agedcare-shared.xcodeproj \
+            -scheme Agedcare-shared \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            -only-testing:Agedcare-sharedTests \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Code Coverage Report
+        if: always()
+        run: |
+          if [ -d "TestResults.xcresult" ]; then
+            xcrun xccov view --report TestResults.xcresult | grep -E '(Agedcare-shared\.app|\.swift)' | head -20
+          fi
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults.xcresult
+          retention-days: 7
+
+  ui-test:
+    name: UI Tests
+    runs-on: macos-15
+    timeout-minutes: 45
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Run UI Tests
+        run: |
+          xcodebuild test \
+            -project Agedcare-shared.xcodeproj \
+            -scheme Agedcare-shared \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -resultBundlePath UITestResults.xcresult \
+            -only-testing:Agedcare-sharedUITests/Agedcare_sharedUITests/testAddItemCreatesEntry \
+            -only-testing:Agedcare-sharedUITests/Agedcare_sharedUITests/testTapItemShowsDetail \
+            -only-testing:Agedcare-sharedUITests/Agedcare_sharedUITests/testDeleteItem \
+            -only-testing:Agedcare-sharedUITests/Agedcare_sharedUITests/testEditButtonExists \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload UI Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: UITestResults.xcresult
+          retention-days: 7

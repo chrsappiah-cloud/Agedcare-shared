@@ -8,6 +8,41 @@
 import SwiftUI
 import SwiftData
 
+func insertItem(into context: ModelContext, timestamp: Date = Date()) {
+    withAnimation {
+        let newItem = Item(timestamp: timestamp)
+        context.insert(newItem)
+    }
+}
+
+func deleteItems(from items: [Item], at offsets: IndexSet, using context: ModelContext) {
+    withAnimation {
+        for index in offsets {
+            context.delete(items[index])
+        }
+    }
+}
+
+func formattedTimestamp(_ date: Date) -> String {
+    date.formatted(date: .numeric, time: .standard)
+}
+
+struct ItemDetailView: View {
+    let timestamp: Date
+
+    var body: some View {
+        Text("Item at \(formattedTimestamp(timestamp))")
+    }
+}
+
+struct ItemRowView: View {
+    let timestamp: Date
+
+    var body: some View {
+        Text(timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+    }
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [Item]
@@ -17,40 +52,27 @@ struct ContentView: View {
             List {
                 ForEach(items) { item in
                     NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
+                        ItemDetailView(timestamp: item.timestamp)
                     } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                        ItemRowView(timestamp: item.timestamp)
                     }
                 }
-                .onDelete(perform: deleteItems)
+                .onDelete { offsets in
+                    deleteItems(from: items, at: offsets, using: modelContext)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
                 }
                 ToolbarItem {
-                    Button(action: addItem) {
+                    Button(action: { insertItem(into: modelContext) }) {
                         Label("Add Item", systemImage: "plus")
                     }
                 }
             }
         } detail: {
             Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
         }
     }
 }

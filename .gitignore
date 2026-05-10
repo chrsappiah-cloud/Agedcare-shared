@@ -1,0 +1,20 @@
+## Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+## Test Results
+*.xcresult/
+
+## macOS
+.DS_Store
+*.swp
+*~
+
+## Swift Package Manager
+.build/
+Packages/
+Package.resolved

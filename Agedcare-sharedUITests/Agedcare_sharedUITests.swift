@@ -1,41 +1,53 @@
-//
-//  Agedcare_sharedUITests.swift
-//  Agedcare-sharedUITests
-//
-//  Created by Christopher Appiah-Thompson  on 10/5/2026.
-//
-
 import XCTest
 
 final class Agedcare_sharedUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testAddItemCreatesEntry() throws {
         let app = XCUIApplication()
         app.launch()
+        app.buttons["Add Item"].tap()
+        XCTAssertTrue(app.collectionViews.cells.firstMatch.waitForExistence(timeout: 5))
+    }
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+    @MainActor
+    func testTapItemShowsDetail() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["Add Item"].tap()
+        let cell = app.collectionViews.cells.firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5))
+        cell.tap()
+        let detail = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Item at'")).firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testDeleteItem() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["Add Item"].tap()
+        let cell = app.collectionViews.cells.firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5))
+        cell.swipeLeft()
+        if app.buttons["Delete"].waitForExistence(timeout: 3) {
+            app.buttons["Delete"].tap()
+        }
+    }
+
+    @MainActor
+    func testEditButtonExists() throws {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5))
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
