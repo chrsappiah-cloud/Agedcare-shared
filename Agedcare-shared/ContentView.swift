@@ -32,6 +32,8 @@ struct ItemDetailView: View {
 
     var body: some View {
         Text("Item at \(formattedTimestamp(timestamp))")
+            .font(.title2)
+            .navigationTitle("Item Detail")
     }
 }
 
@@ -39,28 +41,43 @@ struct ItemRowView: View {
     let timestamp: Date
 
     var body: some View {
-        Text(timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        HStack {
+            Image(systemName: "clock.fill")
+                .foregroundStyle(.blue)
+            Text(timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        }
     }
 }
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(sort: \Item.timestamp, order: .reverse) private var items: [Item]
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        ItemDetailView(timestamp: item.timestamp)
-                    } label: {
-                        ItemRowView(timestamp: item.timestamp)
+        NavigationStack {
+            Group {
+                if items.isEmpty {
+                    ContentUnavailableView(
+                        "No Items Yet",
+                        systemImage: "list.bullet.clipboard",
+                        description: Text("Tap the + button to add your first item.")
+                    )
+                } else {
+                    List {
+                        ForEach(items) { item in
+                            NavigationLink {
+                                ItemDetailView(timestamp: item.timestamp)
+                            } label: {
+                                ItemRowView(timestamp: item.timestamp)
+                            }
+                        }
+                        .onDelete { offsets in
+                            deleteItems(from: items, at: offsets, using: modelContext)
+                        }
                     }
                 }
-                .onDelete { offsets in
-                    deleteItems(from: items, at: offsets, using: modelContext)
-                }
             }
+            .navigationTitle("Agedcare Items")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
@@ -71,8 +88,6 @@ struct ContentView: View {
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
         }
     }
 }
