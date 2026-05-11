@@ -88,6 +88,18 @@ struct SettingsView: View {
         .listRowBackground(AppTheme.surface)
 
         Section {
+          NavigationLink(destination: StakeholdersListView()) {
+            Label("Team Management", systemImage: "person.3.sequence.fill")
+              .foregroundColor(AppTheme.emeraldGreen)
+          }
+          .accessibilityLabel("Team Management")
+          .accessibilityHint("Add and manage clinical and non-clinical staff stakeholders")
+        } header: {
+          Text("Staff & Stakeholders").sectionHeaderStyle()
+        }
+        .listRowBackground(AppTheme.surface)
+
+        Section {
           NavigationLink(destination: WatchPreviewView()) {
             Label("Watch Preview", systemImage: "applewatch")
               .foregroundColor(AppTheme.emeraldGreen)

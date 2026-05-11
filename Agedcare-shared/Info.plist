@@ -31,7 +31,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>AgedCare Monitor saves captured photos and video recordings to your photo library for record-keeping.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>AgedCare Monitor uses your location to identify the facility and associate alerts with the correct site.</string>
+	<string>AgedCare Monitor uses your location to identify the facility, associate alerts with the correct site, and display accurate local weather conditions including outdoor temperature and humidity to help staff maintain comfortable room temperatures for residents.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>AgedCare Monitor uses Face ID to securely authenticate staff members.</string>
 	<key>NSLocalNetworkUsageDescription</key>

@@ -1,0 +1,116 @@
+import SwiftUI
+
+// MARK: - Weather card shown on ResidentHomeView
+struct WeatherCardView: View {
+    @StateObject private var service = LocationWeatherService.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            headerRow
+            if service.isLoading {
+                ProgressView("Fetching weather…")
+                    .frame(maxWidth: .infinity)
+            } else if let err = service.error {
+                Label(err, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.danger)
+            } else {
+                weatherGrid
+            }
+        }
+        .padding(16)
+        .background(AppTheme.surface)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .onAppear { service.requestPermissionAndStart() }
+    }
+
+    private var headerRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "cloud.sun.fill")
+                .font(.title3)
+                .foregroundStyle(AppTheme.emeraldGreen)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Weather & Room Temp")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.textPrimary)
+                if !service.snapshot.locationName.isEmpty {
+                    Text(service.snapshot.locationName)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+            Spacer()
+            Button { service.requestPermissionAndStart() } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.emeraldGreen)
+            }
+            .accessibilityLabel("Refresh weather")
+        }
+    }
+
+    private var weatherGrid: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            WeatherTileView(
+                icon: service.snapshot.conditionSymbol,
+                label: "Outdoor Temp",
+                value: service.snapshot.formattedOutdoorTemp(),
+                color: .orange
+            )
+            WeatherTileView(
+                icon: "thermometer.medium",
+                label: "Room Temp (est.)",
+                value: service.snapshot.formattedRoomTemp(),
+                color: AppTheme.emeraldGreen
+            )
+            WeatherTileView(
+                icon: "humidity.fill",
+                label: "Humidity",
+                value: service.snapshot.formattedHumidity(),
+                color: .blue
+            )
+            WeatherTileView(
+                icon: "wind",
+                label: "Conditions",
+                value: service.snapshot.conditionDescription.isEmpty
+                    ? "--" : service.snapshot.conditionDescription,
+                color: .purple
+            )
+        }
+    }
+}
+
+// MARK: - Individual tile
+private struct WeatherTileView: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.subheadline.bold())
+                .foregroundStyle(AppTheme.textPrimary)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(AppTheme.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(AppTheme.background)
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - Preview
+#Preview {
+    WeatherCardView()
+        .padding()
+        .background(AppTheme.gradientDiamond)
+}

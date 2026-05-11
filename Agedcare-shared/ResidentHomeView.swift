@@ -47,6 +47,7 @@ struct ResidentHomeView: View {
       VStack(spacing: 28) {
         connectionBanner
         monitoringStatusCard
+        WeatherCardView()
         sosButton
         callStaffCard
         reassuranceSection

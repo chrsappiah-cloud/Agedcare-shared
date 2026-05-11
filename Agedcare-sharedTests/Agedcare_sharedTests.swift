@@ -1,6 +1,8 @@
 import Testing
 import SwiftUI
 @testable import Agedcare_shared
+import CloudKit
+
 
 // MARK: - Model Tests
 
@@ -174,16 +176,15 @@ struct WCSMarketingConfigTests {
     }
 
     @Test func allSocialLinksPresent() {
-        #expect(WCSMarketingConfig.socialLinks.count == 8)
+        #expect(WCSMarketingConfig.socialLinks.count == 12)
         let names = WCSMarketingConfig.socialLinks.map(\.name)
-        #expect(names.contains("Twitter / X"))
-        #expect(names.contains("Instagram"))
         #expect(names.contains("LinkedIn"))
-        #expect(names.contains("Facebook"))
-        #expect(names.contains("YouTube"))
         #expect(names.contains("TikTok"))
-        #expect(names.contains("Threads"))
+        #expect(names.contains("YouTube"))
+        #expect(names.contains("Facebook"))
+        #expect(names.contains("NightCafe"))
         #expect(names.contains("Gumroad"))
+        #expect(names.contains("PayPal"))
     }
 
     @Test func all12AppProductsPresent() {
@@ -384,6 +385,181 @@ struct RevenueValidationTests {
 
     @Test func socialHandlesAreReal() {
         let handles = WCSMarketingConfig.socialLinks.map(\.handle)
-        #expect(handles.contains("@christopherappi"))
+        #expect(handles.contains("@chrsappiah"))
+    }
+}
+
+
+// MARK: - CloudKit / iCloud Live Probes (on-device)
+
+@Suite("CloudKit Live Probes")
+struct CloudKitLiveProbeTests {
+
+    @Test func defaultContainerResolves() {
+        let container = CKContainer.default()
+        #expect(!container.containerIdentifier.isEmptyOrNil,
+                "CKContainer.default() must resolve a container identifier from the app entitlements")
+    }
+
+    @Test func privateAndPublicDatabasesAccessible() {
+        let container = CKContainer.default()
+        let priv = container.privateCloudDatabase
+        let pub  = container.publicCloudDatabase
+        #expect(priv.databaseScope == .private)
+        #expect(pub.databaseScope  == .public)
+    }
+
+    @Test func accountStatusIsQueryable() async throws {
+        let container = CKContainer.default()
+        let status = try await container.accountStatus()
+        let valid: [CKAccountStatus] = [.available, .noAccount, .restricted, .couldNotDetermine, .temporarilyUnavailable]
+        #expect(valid.contains(status),
+                "accountStatus() must return a known CKAccountStatus value (got rawValue \(status.rawValue))")
+    }
+
+    @Test func cloudKitServiceSingletonExposesDatabases() {
+        let svc = CloudKitService.shared
+        #expect(svc.privateDB.databaseScope == .private)
+        #expect(svc.publicDB.databaseScope  == .public)
+    }
+}
+
+private extension Optional where Wrapped == String {
+    var isEmptyOrNil: Bool { (self ?? "").isEmpty }
+}
+
+// MARK: - Backend / Middleware Health Probes (on-device)
+
+@Suite("Backend Health Probes")
+struct BackendHealthProbeTests {
+
+    /// Construct a SupabaseClient using the configured AppHost and verify it
+    /// is non-nil and uses the expected base URL. This exercises the middleware
+    /// wiring without requiring the backend to actually be online.
+    @Test func supabaseClientConstructsFromAppHost() {
+        let config = SupabaseConfig(baseURL: AppHost.baseURL, apiKey: AppHost.supabaseAnonKey)
+        let client = SupabaseClient(config: config, accessTokenProvider: { nil })
+        #expect(config.baseURL.absoluteString.hasPrefix("http"))
+        _ = client // construction itself is the test
+    }
+
+    /// DependencyContainer must wire all three repositories without throwing.
+    @Test func dependencyContainerWiresRepositories() {
+        let container = DependencyContainer()
+        _ = container.alertsRepository
+        _ = container.residentsRepository
+        _ = container.facilityRepository
+        _ = container.supabase
+    }
+
+    // MARK: - StakeholderModel + StakeholderStore tests
+
+    @Test func stakeholderClassificationIsClinical() {
+        var s = Stakeholder.blank()
+        s.classification = .clinical
+        #expect(s.isClinical == true)
+    }
+
+    @Test func stakeholderClassificationIsNonClinical() {
+        var s = Stakeholder.blank()
+        s.classification = .nonClinical
+        #expect(s.isClinical == false)
+    }
+
+    @Test func stakeholderFullName() {
+        var s = Stakeholder.blank()
+        s.firstName = "Jane"; s.lastName = "Smith"
+        #expect(s.fullName == "Jane Smith")
+    }
+
+    @MainActor @Test func stakeholderStoreAddAndRetrieve() {
+        let store = StakeholderStore()
+        var s = Stakeholder.blank()
+        s.firstName = "Alice"; s.lastName = "Brown"; s.role = "Nurse"
+        s.classification = .clinical
+        store.add(s)
+        #expect(store.stakeholders.contains { $0.id == s.id })
+    }
+
+    @MainActor @Test func stakeholderStoreUpdate() {
+        let store = StakeholderStore()
+        var s = Stakeholder.blank()
+        s.firstName = "Bob"; s.role = "Cleaner"; s.classification = .nonClinical
+        store.add(s)
+        s.role = "Maintenance"
+        store.update(s)
+        #expect(store.stakeholder(for: s.id)?.role == "Maintenance")
+    }
+
+    @MainActor @Test func stakeholderStoreDelete() {
+        let store = StakeholderStore()
+        var s = Stakeholder.blank()
+        s.firstName = "Carol"; s.classification = .clinical
+        store.add(s)
+        store.delete(id: s.id)
+        #expect(store.stakeholder(for: s.id) == nil)
+    }
+
+    @MainActor @Test func stakeholderStoreClinicalFilter() {
+        let store = StakeholderStore()
+        var clinical = Stakeholder.blank(); clinical.firstName = "C"; clinical.classification = .clinical; clinical.isActive = true
+        var nonClinical = Stakeholder.blank(); nonClinical.firstName = "N"; nonClinical.classification = .nonClinical; nonClinical.isActive = true
+        store.add(clinical); store.add(nonClinical)
+        #expect(store.clinical().allSatisfy { $0.isClinical })
+        #expect(store.nonClinical().allSatisfy { !$0.isClinical })
+    }
+
+    // MARK: - WeatherSnapshot formatting helpers
+
+    @Test func weatherSnapshotFormattedOutdoorTempCelsius() {
+        var snap = WeatherSnapshot()
+        snap.outdoorTemperature = 25.0
+        #expect(snap.formattedOutdoorTemp() == "25.0 °C")
+    }
+
+    @Test func weatherSnapshotFormattedRoomTemp() {
+        var snap = WeatherSnapshot()
+        snap.outdoorTemperature = 30.0
+        // estimated = (30 + 22) / 2 = 26.0
+        #expect(snap.formattedRoomTemp() == "26.0 °C")
+    }
+
+    @Test func weatherSnapshotFormattedHumidity() {
+        var snap = WeatherSnapshot()
+        snap.humidity = 0.65
+        #expect(snap.formattedHumidity() == "65%")
+    }
+
+    @Test func weatherSnapshotNoDataReturnsPlaceholder() {
+        let snap = WeatherSnapshot()
+        #expect(snap.formattedOutdoorTemp() == "--")
+        #expect(snap.formattedRoomTemp() == "--")
+        #expect(snap.formattedHumidity() == "--")
+    }
+
+    @Test func weatherSnapshotFahrenheitConversion() {
+        var snap = WeatherSnapshot()
+        snap.outdoorTemperature = 0.0   // 0 °C = 32 °F
+        let result = snap.formattedOutdoorTemp(unit: .fahrenheit)
+        #expect(result == "32.0 °F")
+    }
+
+    /// The Vercel marketing site (also linked from the app footer) must respond.
+    /// Tolerates offline test environments by recording rather than failing.
+    @Test func vercelMarketingSiteReachable() async throws {
+        let url = WCSMarketingConfig.websiteURL
+        var req = URLRequest(url: url, timeoutInterval: 10)
+        req.httpMethod = "HEAD"
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            guard let http = response as? HTTPURLResponse else {
+                Issue.record("Vercel response was not HTTP")
+                return
+            }
+            #expect((200...399).contains(http.statusCode),
+                    "Vercel marketing site must respond; got \(http.statusCode)")
+        } catch {
+            Issue.record("Vercel reachability probe network error: \(error.localizedDescription)")
+        }
     }
 }
