@@ -143,7 +143,7 @@ struct WCSMarketingConfig {
     static let donateURL = URL(string: "https://wcs-full.vercel.app/donate")!
     static let testFlightURL = URL(string: "https://testflight.apple.com/join/WCSCare")!
     static let analyticsEndpoint: URL? = URL(string: "https://wcs-full.vercel.app/api/analytics")
-    static let analyticsRemoteEnabled: Bool = false
+    static let analyticsRemoteEnabled: Bool = true
     static let feedbackFormURL = URL(string: "https://wcs-full.vercel.app/beta-feedback")!
     static let partnerOnboardingURL = URL(string: "https://wcs-full.vercel.app/partner-onboarding")!
     static let caseStudiesURL = URL(string: "https://wcs-full.vercel.app/case-studies")!
