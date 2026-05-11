@@ -119,7 +119,7 @@ struct SettingsView: View {
             Text("Report a problem")
               .font(.title2.bold())
               .foregroundColor(AppTheme.textPrimary)
-            Text("Contact support at support@agedcare.app or call 1-800-AGEDCARE")
+            Text("Contact us at christopher.appiahthompson@myworldclass.org or chrsappiah@gmail.com\nVisit: wcs-full.vercel.app")
               .multilineTextAlignment(.center)
               .foregroundColor(AppTheme.textSecondary)
           }
@@ -137,7 +137,7 @@ struct SettingsView: View {
             Text("Legal & Privacy")
               .font(.title2.bold())
               .foregroundColor(AppTheme.textPrimary)
-            Text("AgedCare App v1.0\n© 2026 AgedCare Inc.\n\nYour data is encrypted and stored securely. HealthKit data never leaves your device without your consent.")
+            Text("WCS Care v1.0.3\n© 2026 World Class Scholars\nwcs-full.vercel.app\n\nYour data is encrypted and stored securely. HealthKit data never leaves your device without your consent.")
               .multilineTextAlignment(.center)
               .foregroundColor(AppTheme.textSecondary)
           }

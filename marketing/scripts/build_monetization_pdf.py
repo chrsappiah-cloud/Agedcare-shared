@@ -29,14 +29,16 @@ class Theme(FPDF):
         self.ln(14)
 
     def footer(self):
-        self.set_y(-12)
+        self.set_y(-14)
         self.set_draw_color(*EMERALD)
         self.set_line_width(0.4)
         self.line(10, self.get_y(), 200, self.get_y())
-        self.set_font("Helvetica", "", 8)
+        self.set_font("Helvetica", "", 7)
         self.set_text_color(*MUTED)
-        self.set_y(-10)
-        self.cell(0, 5, f"Page {self.page_no()}", align="C")
+        self.set_y(-12)
+        self.cell(0, 4, "wcs-full.vercel.app  |  christopher.appiahthompson@myworldclass.org  |  chrsappiah@gmail.com", align="L")
+        self.set_y(-8)
+        self.cell(0, 4, f"Page {self.page_no()}  |  © 2026 World Class Scholars", align="C")
 
 
 def h1(p, t):

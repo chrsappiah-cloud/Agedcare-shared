@@ -140,4 +140,6 @@ Finish something useful, publish it, learn from feedback, and repeat. Monetizati
 tied to user value instead of guessing. Calm consistency beats rushing for immediate sales.
 
 ---
+**Website:** [wcs-full.vercel.app](https://wcs-full.vercel.app)
+**Contact:** christopher.appiahthompson@myworldclass.org | chrsappiah@gmail.com
 © World Class Scholars — Dr Christopher Appiah-Thompson

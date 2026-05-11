@@ -22,3 +22,5 @@ KNOWN
 • All paid features are free during TestFlight. We're learning, not selling.
 
 — Dr Christopher Appiah-Thompson, World Class Scholars
+Website: https://wcs-full.vercel.app
+Contact: christopher.appiahthompson@myworldclass.org | chrsappiah@gmail.com
