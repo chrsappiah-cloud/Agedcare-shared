@@ -1,0 +1,24 @@
+WCS Care 1.0.3 — Plans, Pricing & Pilot Validation
+
+This build turns on the monetization validation layer for TestFlight.
+
+WHAT'S NEW
+• Plans & Pricing screen with three clear tiers:
+  – Starter (free) for family carers
+  – Care Pro (~$9.99/mo) for individual & professional carers
+  – Care Team (custom) for clinics & care organizations
+• Care Pro waitlist with email capture
+• Care Team pilot request form for organizations
+• Beta analytics: plan-tap demand signals, feedback events, growth roadmap view
+• 12-Month Growth Roadmap screen reachable from Plans & Pricing
+• In-app links to TestFlight invite, pilot form, support email and the WCS website
+
+HOW YOU CAN HELP
+• Tap any plan that interests you — we use those taps to decide what to build first.
+• If your organization wants a pilot, open Settings → Plans & Pricing → Request Pilot.
+• Share Beta Feedback any time from Plans & Pricing.
+
+KNOWN
+• All paid features are free during TestFlight. We're learning, not selling.
+
+— Dr Christopher Appiah-Thompson, World Class Scholars
