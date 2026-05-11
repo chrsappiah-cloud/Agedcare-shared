@@ -151,20 +151,37 @@ struct WCSMarketingConfig {
 
     static let myworldclassURL = URL(string: "https://myworldclass.org")!
     static let wcsArtVerseURL = URL(string: "https://wcs-art-verse.com")!
-    static let gumroadURL = URL(string: "https://christopherappiahthompson.gumroad.com")!
+    static let gumroadURL = URL(string: "https://chrspiah.gumroad.com")!
+    static let nightcafeURL = URL(string: "https://creator.nightcafe.studio/u/CKRIZ")!
+    static let wcsFutureLabURL = URL(string: "https://www.wcsflab.com")!
     static let twineURL = URL(string: "https://www.twine.net/WorldClass123")!
 
-    // MARK: - Real Social Media Handles
+    // MARK: - Verified Social Media Handles (sourced from christopherappiahthompson.link)
 
     static let socialLinks: [(name: String, icon: String, url: URL, handle: String)] = [
-        ("Twitter / X", "bird.fill", URL(string: "https://x.com/christopherappi")!, "@christopherappi"),
-        ("Instagram", "camera.fill", URL(string: "https://instagram.com/christopherappi")!, "@christopherappi"),
-        ("LinkedIn", "link.circle.fill", URL(string: "https://linkedin.com/in/christopher-appiah-thompson-a2014045")!, "Christopher Appiah-Thompson"),
-        ("Facebook", "person.2.fill", URL(string: "https://facebook.com/chris.appiah.396045")!, "Christopher Appiah-Thompson"),
-        ("YouTube", "play.rectangle.fill", URL(string: "https://youtube.com/@christopherappi")!, "@christopherappi"),
-        ("TikTok", "music.note", URL(string: "https://tiktok.com/@christopherappi")!, "@christopherappi"),
-        ("Threads", "at.circle.fill", URL(string: "https://threads.net/@christopherappi")!, "@christopherappi"),
-        ("Gumroad", "bag.fill", URL(string: "https://christopherappiahthompson.gumroad.com")!, "Art & Digital Works"),
+        // Verified accounts
+        ("LinkedIn",   "link.circle.fill",      URL(string: "https://linkedin.com/in/christopher-appiah-thompson-a2014045")!, "christopher-appiah-thompson-a2014045"),
+        ("TikTok",     "music.note",             URL(string: "https://tiktok.com/@chrsappiah")!,                               "@chrsappiah"),
+        ("YouTube",    "play.rectangle.fill",    URL(string: "https://youtube.com/channel/UC2a-_QUygsGAKWzEdKHEP9Q")!,        "WCS YouTube Channel"),
+        ("Facebook",   "person.2.fill",          URL(string: "https://facebook.com/chris.appiah.396045")!,                    "Christopher Appiah-Thompson"),
+        // Creator platforms
+        ("NightCafe",  "sparkles",               URL(string: "https://creator.nightcafe.studio/u/CKRIZ")!,                    "CKRIZ"),
+        ("Gumroad",    "bag.fill",               URL(string: "https://chrspiah.gumroad.com")!,                                "chrspiah — Art & Digital Works"),
+        // Podcast channels (RSS.com)
+        ("Podcast: Heartbeats Beyond Memory",    "waveform",
+         URL(string: "https://rss.com/podcasts/heartbeats-beyond-memory-creative-care-in-dementia/2357430")!,
+         "Creative Care in Dementia"),
+        ("Podcast: Decoding Freemasonry",        "lock.open.fill",
+         URL(string: "https://rss.com/podcasts/decoding-the-signs-and-symbols-of-freemasonry-in-the-21st-century/")!,
+         "Signs & Symbols in the 21st Century"),
+        ("Podcast: Art, Culture & Tattoos",      "paintpalette.fill",
+         URL(string: "https://rss.com/podcasts/art-culture-and-philosophies-of-tattoos")!,
+         "Art, Culture and Philosophies"),
+        // Contact
+        ("Email (Personal)",  "envelope.fill",  URL(string: "mailto:chrsappiah@gmail.com")!,                                  "chrsappiah@gmail.com"),
+        ("Email (WCS)",       "envelope.badge", URL(string: "mailto:christopher.appiahthompson@myworldclass.org")!,           "christopher.appiahthompson@myworldclass.org"),
+        // PayPal
+        ("PayPal",     "dollarsign.circle.fill", URL(string: "https://paypal.me/christopherappiahthompson")!,                 "paypal.me/christopherappiahthompson"),
     ]
 
     // MARK: - All 12 TestFlight App Products
@@ -423,7 +440,7 @@ struct WCSMarketingConfig {
         Try it on TestFlight: \(app.testFlightLink.absoluteString)
         Learn more: \(app.websitePage.absoluteString)
 
-        Built by @christopherappi | World Class Scholars
+        Built by @chrsappiah (TikTok) | World Class Scholars
         \(personalLinkURL.absoluteString)
 
         #WCS #\(app.name.replacingOccurrences(of: " ", with: "")) #TestFlight #iOS

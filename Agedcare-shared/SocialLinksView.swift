@@ -234,7 +234,37 @@ struct SocialLinksView: View {
                 HStack {
                     Image(systemName: "bag.fill")
                         .foregroundColor(AppTheme.emeraldGreen)
-                    Text("Gumroad — Art & Digital Works")
+                    Text("Gumroad — chrspiah (Art & Digital Works)")
+                        .foregroundColor(AppTheme.textPrimary)
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Button {
+                openURL(WCSMarketingConfig.nightcafeURL)
+            } label: {
+                HStack {
+                    Image(systemName: "sparkles")
+                        .foregroundColor(AppTheme.emeraldGreen)
+                    Text("NightCafe — CKRIZ")
+                        .foregroundColor(AppTheme.textPrimary)
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Button {
+                openURL(WCSMarketingConfig.wcsFutureLabURL)
+            } label: {
+                HStack {
+                    Image(systemName: "flask.fill")
+                        .foregroundColor(AppTheme.emeraldGreen)
+                    Text("WCS Future Lab — wcsflab.com")
                         .foregroundColor(AppTheme.textPrimary)
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
