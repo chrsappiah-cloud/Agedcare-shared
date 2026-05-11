@@ -161,6 +161,28 @@ struct SubscriptionTierTests {
             #expect(!tier.subtitle.isEmpty)
         }
     }
+
+    @Test func paidTiersHaveProductIds() {
+        #expect(SubscriptionTier.carePro.productId == "wcs.Agedcare_shared.care_pro_monthly")
+        #expect(SubscriptionTier.careTeam.productId == "wcs.Agedcare_shared.care_team_annual")
+        #expect(SubscriptionTier.starter.productId == nil)
+    }
+
+    @Test func rawValueRoundTrip() {
+        for tier in SubscriptionTier.allCases {
+            #expect(SubscriptionTier(rawValue: tier.rawValue) == tier)
+        }
+    }
+
+    @Test func careProFeaturesIncludeWeeklySummaries() {
+        let features = SubscriptionTier.carePro.features.joined(separator: " ").lowercased()
+        #expect(features.contains("weekly") || features.contains("summary") || features.contains("summaries"))
+    }
+
+    @Test func careTeamFeaturesIncludeMultiUser() {
+        let features = SubscriptionTier.careTeam.features.joined(separator: " ").lowercased()
+        #expect(features.contains("multi-user") || features.contains("staff"))
+    }
 }
 
 // MARK: - Marketing Config Tests
@@ -561,5 +583,99 @@ struct BackendHealthProbeTests {
         } catch {
             Issue.record("Vercel reachability probe network error: \(error.localizedDescription)")
         }
+    }
+}
+
+
+// MARK: - BetaAnalytics Tests
+
+@Suite("BetaAnalytics Tests")
+struct BetaAnalyticsTests {
+    private func isolatedDefaults() -> UserDefaults {
+        let suiteName = "wcs.tests.\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: suiteName)!
+        d.removePersistentDomain(forName: suiteName)
+        return d
+    }
+
+    @MainActor @Test func singletonExists() {
+        #expect(BetaAnalytics.shared === BetaAnalytics.shared)
+    }
+
+    @MainActor @Test func logEventAppendsToEvents() {
+        let a = BetaAnalytics(defaults: isolatedDefaults())
+        a.logEvent("ping", payload: ["k": "v"])
+        #expect(a.events.count == 1)
+        #expect(a.events.last?.type == "ping")
+        #expect(a.events.last?.payload["k"] == "v")
+    }
+
+    @MainActor @Test func logPlanInterestIncrementsCounter() {
+        let a = BetaAnalytics(defaults: isolatedDefaults())
+        a.logPlanInterest("care_pro")
+        a.logPlanInterest("care_pro")
+        a.logPlanInterest("care_team")
+        #expect(a.planInterestCounts["care_pro"] == 2)
+        #expect(a.planInterestCounts["care_team"] == 1)
+    }
+
+    @MainActor @Test func logFeedbackIncrementsCount() {
+        let a = BetaAnalytics(defaults: isolatedDefaults())
+        a.logFeedback(feeling: "Great", confusion: "", wish: "more profiles", features: ["routines"])
+        #expect(a.feedbackCount == 1)
+        #expect(a.events.last?.type == "beta_feedback")
+        #expect(a.events.last?.payload["feeling"] == "Great")
+        #expect(a.events.last?.payload["confusion"] == "none")
+    }
+
+    @MainActor @Test func activationRetentionOnboardingFeatureEventsFire() {
+        let a = BetaAnalytics(defaults: isolatedDefaults())
+        a.logActivation("first_resident_added")
+        a.logRetention()
+        a.logOnboardingStep("welcome", completed: true)
+        a.logFeatureUse("mood_log", duration: 12)
+        let types = a.events.map(\.type)
+        #expect(types.contains("activation"))
+        #expect(types.contains("session_start"))
+        #expect(types.contains("onboarding"))
+        #expect(types.contains("feature_use"))
+    }
+
+    @MainActor @Test func persistenceRoundTrip() {
+        let d = isolatedDefaults()
+        let a1 = BetaAnalytics(defaults: d)
+        a1.logEvent("first")
+        a1.logPlanInterest("care_pro")
+        a1.logFeedback(feeling: "Okay", confusion: "x", wish: "", features: [])
+
+        let a2 = BetaAnalytics(defaults: d)
+        #expect(a2.events.contains(where: { $0.type == "first" }))
+        #expect(a2.planInterestCounts["care_pro"] == 1)
+        #expect(a2.feedbackCount == 1)
+    }
+
+    @MainActor @Test func maxEventsCapApplies() {
+        let a = BetaAnalytics(defaults: isolatedDefaults())
+        for i in 0..<(BetaAnalytics.maxEvents + 25) {
+            a.logEvent("e\(i)")
+        }
+        #expect(a.events.count == BetaAnalytics.maxEvents)
+        #expect(a.events.first?.type != "e0")
+    }
+
+    @MainActor @Test func resetForTestingClearsState() {
+        let a = BetaAnalytics(defaults: isolatedDefaults())
+        a.logEvent("noise")
+        a.logPlanInterest("care_team")
+        a.logFeedback(feeling: "Confused", confusion: "ui", wish: "", features: [])
+        a.resetForTesting()
+        #expect(a.events.isEmpty)
+        #expect(a.feedbackCount == 0)
+        #expect(a.planInterestCounts.isEmpty)
+    }
+
+    @Test func remoteSinkDefaultsOffAndEndpointPointsAtVercel() {
+        #expect(WCSMarketingConfig.analyticsRemoteEnabled == false)
+        #expect(WCSMarketingConfig.analyticsEndpoint?.absoluteString == "https://wcs-full.vercel.app/api/analytics")
     }
 }

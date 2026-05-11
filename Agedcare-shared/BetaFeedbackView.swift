@@ -303,10 +303,34 @@ final class BetaAnalytics: ObservableObject {
     @Published var feedbackCount: Int = 0
     @Published var planInterestCounts: [String: Int] = [:]
 
-    private init() {}
+    private struct PersistedEvent: Codable {
+        let type: String
+        let payload: [String: String]
+        let timestamp: Date
+    }
+    private struct PersistedState: Codable {
+        var events: [PersistedEvent]
+        var feedbackCount: Int
+        var planInterestCounts: [String: Int]
+    }
+
+    static let storeKey = "wcs.beta_analytics.state.v1"
+    static let maxEvents = 500
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        loadPersisted()
+    }
 
     func logEvent(_ type: String, payload: [String: String] = [:]) {
-        events.append((type: type, payload: payload, timestamp: Date()))
+        let now = Date()
+        events.append((type: type, payload: payload, timestamp: now))
+        if events.count > Self.maxEvents {
+            events.removeFirst(events.count - Self.maxEvents)
+        }
+        persistState()
+        Task { await dispatch(PersistedEvent(type: type, payload: payload, timestamp: now)) }
     }
 
     func logFeedback(feeling: String, confusion: String, wish: String, features: [String]) {
@@ -340,5 +364,48 @@ final class BetaAnalytics: ObservableObject {
         var payload = ["feature": feature]
         if let d = duration { payload["duration_seconds"] = String(format: "%.0f", d) }
         logEvent("feature_use", payload: payload)
+    }
+
+    func resetForTesting() {
+        events.removeAll()
+        feedbackCount = 0
+        planInterestCounts.removeAll()
+        defaults.removeObject(forKey: Self.storeKey)
+    }
+
+    private func persistState() {
+        let persisted = PersistedState(
+            events: events.map { PersistedEvent(type: $0.type, payload: $0.payload, timestamp: $0.timestamp) },
+            feedbackCount: feedbackCount,
+            planInterestCounts: planInterestCounts
+        )
+        if let data = try? JSONEncoder().encode(persisted) {
+            defaults.set(data, forKey: Self.storeKey)
+        }
+    }
+
+    private func loadPersisted() {
+        guard let data = defaults.data(forKey: Self.storeKey),
+              let state = try? JSONDecoder().decode(PersistedState.self, from: data)
+        else { return }
+        events = state.events.map { (type: $0.type, payload: $0.payload, timestamp: $0.timestamp) }
+        feedbackCount = state.feedbackCount
+        planInterestCounts = state.planInterestCounts
+    }
+
+    private func dispatch(_ event: PersistedEvent) async {
+        guard WCSMarketingConfig.analyticsRemoteEnabled,
+              let endpoint = WCSMarketingConfig.analyticsEndpoint else { return }
+        var req = URLRequest(url: endpoint, timeoutInterval: 10)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "type": event.type,
+            "payload": event.payload,
+            "timestamp": ISO8601DateFormatter().string(from: event.timestamp),
+            "app": "Agedcare-shared"
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        _ = try? await URLSession.shared.data(for: req)
     }
 }

@@ -40,6 +40,38 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Pre-flight — verify required signing secrets
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -e
+          missing=()
+          for name in BUILD_CERTIFICATE_BASE64 P12_PASSWORD BUILD_PROVISION_PROFILE_BASE64 KEYCHAIN_PASSWORD ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY_BASE64; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            {
+              echo "### ❌ Missing required GitHub Actions secrets"
+              echo ""
+              echo "The following repository secrets must be configured before this workflow can sign and upload to TestFlight:"
+              echo ""
+              for s in "${missing[@]}"; do echo "- \`$s\`"; done
+              echo ""
+              echo "Configure them at: **Settings → Secrets and variables → Actions → New repository secret**"
+              echo ""
+              echo "See \`docs/CI_SECRETS.md\` for exact values and base64 encoding instructions."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Missing secrets: ${missing[*]}"
+            exit 1
+          fi
+          echo "✅ All 7 required signing secrets are present"
+
       - name: Resolve marketing version + build number
         id: version
         run: |
