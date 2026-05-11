@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F5F7FA"/>
+      <stop offset="100%" stop-color="#D4DDE5"/>
+    </linearGradient>
+    <linearGradient id="emerald" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#33AB54"/>
+      <stop offset="100%" stop-color="#1C7836"/>
+    </linearGradient>
+    <linearGradient id="ruby" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C21F33"/>
+      <stop offset="100%" stop-color="#8C0E1F"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+      <feOffset dx="0" dy="10"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.28"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1080" height="1080" fill="url(#bg)"/>
+
+  <!-- Decorative diagonal stripe -->
+  <polygon points="0,0 1080,0 1080,160 0,420" fill="url(#emerald)" opacity="0.95"/>
+  <polygon points="0,420 1080,160 1080,260 0,520" fill="url(#emerald)" opacity="0.35"/>
+
+  <!-- Accent dot -->
+  <circle cx="940" cy="120" r="42" fill="url(#ruby)" opacity="0.9"/>
+
+  <!-- App icon card -->
+  <g filter="url(#shadow)">
+    <rect x="412" y="300" width="256" height="256" rx="58" ry="58" fill="#FFFFFF"/>
+    <image href="app_icon.png" x="412" y="300" width="256" height="256" clip-path="inset(0 round 58px)"/>
+  </g>
+
+  <!-- Headline -->
+  <text x="540" y="660" font-family="Helvetica Neue, Helvetica, Arial" font-size="74" font-weight="700"
+        text-anchor="middle" fill="#452917">Aged Care, Reimagined.</text>
+
+  <!-- Subhead -->
+  <text x="540" y="720" font-family="Helvetica Neue, Helvetica, Arial" font-size="34" font-weight="400"
+        text-anchor="middle" fill="#734D33">Compassionate care, intelligently connected.</text>
+
+  <!-- Feature pills -->
+  <g font-family="Helvetica Neue, Helvetica, Arial" font-size="24" font-weight="600">
+    <g transform="translate(60,830)">
+      <rect width="310" height="78" rx="39" fill="#FFFFFF" stroke="#33AB54" stroke-width="3"/>
+      <circle cx="44" cy="39" r="14" fill="#C21F33"/>
+      <text x="74" y="48" fill="#452917">SOS &amp; Alerts</text>
+    </g>
+    <g transform="translate(385,830)">
+      <rect width="310" height="78" rx="39" fill="#FFFFFF" stroke="#33AB54" stroke-width="3"/>
+      <circle cx="44" cy="39" r="14" fill="#33AB54"/>
+      <text x="74" y="48" fill="#452917">Weather + Comfort</text>
+    </g>
+    <g transform="translate(710,830)">
+      <rect width="310" height="78" rx="39" fill="#FFFFFF" stroke="#33AB54" stroke-width="3"/>
+      <circle cx="44" cy="39" r="14" fill="#1C7836"/>
+      <text x="74" y="48" fill="#452917">Team Manager</text>
+    </g>
+  </g>
+
+  <!-- Footer wordmark -->
+  <text x="540" y="990" font-family="Helvetica Neue, Helvetica, Arial" font-size="36" font-weight="700"
+        text-anchor="middle" fill="#1C7836" letter-spacing="3">AGED CARE SHARED</text>
+  <text x="540" y="1030" font-family="Helvetica Neue, Helvetica, Arial" font-size="22" font-weight="400"
+        text-anchor="middle" fill="#734D33">Available now on TestFlight</text>
+</svg>
