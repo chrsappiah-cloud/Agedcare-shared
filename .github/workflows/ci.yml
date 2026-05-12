@@ -130,6 +130,7 @@ jobs:
       - name: Run Unit Tests
         run: |
           run_tests() {
+            rm -rf TestResults.xcresult
             xcodebuild test \
               -project "$PROJECT" \
               -scheme "$SCHEME" \
