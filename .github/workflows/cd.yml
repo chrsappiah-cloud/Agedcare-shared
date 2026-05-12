@@ -189,14 +189,68 @@ jobs:
       - name: Export IPA
         run: |
           set -euo pipefail
+          EXPORT_PATH="$RUNNER_TEMP/export"
+          EXPORT_LOG="$RUNNER_TEMP/export.log"
+          ARCHIVE_PATH="$RUNNER_TEMP/$SCHEME.xcarchive"
+          rm -rf "$EXPORT_PATH"
+          mkdir -p "$EXPORT_PATH"
+
+          set +e
           xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
+            -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$RUNNER_TEMP/export" \
+            -exportPath "$EXPORT_PATH" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            2>&1 | tee "$EXPORT_LOG"
+          export_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$export_status" -ne 0 ]; then
+            if ! grep -Eq "Cloud signing permission error|No profiles for '.*' were found" "$EXPORT_LOG"; then
+              echo "Automatic export failed for a non-profile reason; not retrying."
+              exit "$export_status"
+            fi
+
+            APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name "*.app" -print -quit)
+            if [ -z "${APP_PATH:-}" ] || [ ! -d "$APP_PATH" ]; then
+              echo "Archived app bundle not found for fallback export."
+              exit "$export_status"
+            fi
+
+            EMBEDDED_PROFILE="$APP_PATH/embedded.mobileprovision"
+            if [ ! -f "$EMBEDDED_PROFILE" ]; then
+              echo "No embedded provisioning profile found in archive for fallback export."
+              exit "$export_status"
+            fi
+
+            PROFILE_PLIST="$RUNNER_TEMP/embedded-profile.plist"
+            MANUAL_EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.manual.plist"
+            INFO_PLIST="$APP_PATH/Info.plist"
+            security cms -D -i "$EMBEDDED_PROFILE" > "$PROFILE_PLIST"
+            PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$PROFILE_PLIST")
+            PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$PROFILE_PLIST")
+            BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST")
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp "$EMBEDDED_PROFILE" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
+
+            cp ExportOptions.plist "$MANUAL_EXPORT_PLIST"
+            /usr/libexec/PlistBuddy -c "Set :signingStyle manual" "$MANUAL_EXPORT_PLIST"
+            /usr/libexec/PlistBuddy -c "Delete :provisioningProfiles" "$MANUAL_EXPORT_PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$MANUAL_EXPORT_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_NAME" "$MANUAL_EXPORT_PLIST"
+
+            echo "Retrying export with archived provisioning profile: $PROFILE_NAME"
+            rm -rf "$EXPORT_PATH"
+            mkdir -p "$EXPORT_PATH"
+            xcodebuild -exportArchive \
+              -archivePath "$ARCHIVE_PATH" \
+              -exportOptionsPlist "$MANUAL_EXPORT_PLIST" \
+              -exportPath "$EXPORT_PATH" \
+              2>&1 | tee -a "$EXPORT_LOG"
+          fi
           ls -la "$RUNNER_TEMP/export"
 
       - name: Validate IPA against App Store Connect
