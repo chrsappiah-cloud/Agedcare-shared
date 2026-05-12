@@ -32,9 +32,13 @@ public final class CloudKitAlertSync: @unchecked Sendable {
 
   public func setup() throws {
     guard container == nil else { return }
+    #if targetEnvironment(simulator)
+    throw CloudKitSyncError.containerNotConfigured
+    #else
     container = CKContainer.default()
     service = CloudKitService.shared
     sharedDB = service.privateDB
+    #endif
   }
 
   // MARK: - Record conversion
