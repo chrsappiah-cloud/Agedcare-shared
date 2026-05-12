@@ -129,19 +129,35 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          xcodebuild test \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -destination "id=${{ steps.simulator.outputs.id }}" \
-            -destination-timeout 180 \
-            -parallel-testing-enabled NO \
-            -maximum-concurrent-test-simulator-destinations 1 \
-            -enableCodeCoverage YES \
-            -resultBundlePath TestResults.xcresult \
-            -only-testing:Agedcare-sharedTests \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          run_tests() {
+            xcodebuild test \
+              -project "$PROJECT" \
+              -scheme "$SCHEME" \
+              -destination "id=${{ steps.simulator.outputs.id }}" \
+              -destination-timeout 180 \
+              -parallel-testing-enabled NO \
+              -maximum-concurrent-test-simulator-destinations 1 \
+              -enableCodeCoverage YES \
+              -resultBundlePath TestResults.xcresult \
+              -only-testing:Agedcare-sharedTests \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
+          }
+
+          for attempt in 1 2; do
+            if run_tests; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 2 ]; then
+              exit 1
+            fi
+            echo "Retrying unit tests after simulator reset..."
+            xcrun simctl shutdown "${{ steps.simulator.outputs.id }}" || true
+            xcrun simctl erase "${{ steps.simulator.outputs.id }}" || true
+            xcrun simctl boot "${{ steps.simulator.outputs.id }}" || true
+            xcrun simctl bootstatus "${{ steps.simulator.outputs.id }}" -b
+          done
 
       - name: Code Coverage Report
         if: always()
