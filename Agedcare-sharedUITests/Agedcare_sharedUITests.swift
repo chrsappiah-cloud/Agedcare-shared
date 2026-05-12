@@ -68,4 +68,50 @@ final class Agedcare_sharedUITests: XCTestCase {
             XCUIApplication().launch()
         }
     }
+
+    @MainActor
+    func testResidentSetupEntersResidentShell() throws {
+        let residentCTA = app.buttons["setup_resident"]
+        XCTAssertTrue(residentCTA.waitForExistence(timeout: 10))
+        residentCTA.tap()
+
+        let residentCell = app.buttons["Aisha Khan"]
+        XCTAssertTrue(residentCell.waitForExistence(timeout: 20),
+                      "Resident setup should show the seeded demo resident list")
+        residentCell.tap()
+
+        let sosButton = app.buttons["resident_sos_button"]
+        XCTAssertTrue(sosButton.waitForExistence(timeout: 20),
+                      "Resident shell should expose the SOS action")
+
+        app.tabBars.buttons["Navigate"].tap()
+        XCTAssertTrue(app.staticTexts["Resident Navigator"].waitForExistence(timeout: 10),
+                      "Resident navigator should be reachable from the shell")
+    }
+
+    @MainActor
+    func testTestingAccessEntersStaffShellAndReturnsToHero() throws {
+        let staffCTA = app.buttons["staff_login"]
+        XCTAssertTrue(staffCTA.waitForExistence(timeout: 10))
+        staffCTA.tap()
+
+        let adminTestingAccess = app.buttons["testing_admin@gvcare.com"]
+        XCTAssertTrue(adminTestingAccess.waitForExistence(timeout: 20),
+                      "Testing access profiles should be shown in the staff login sheet")
+        adminTestingAccess.tap()
+
+        XCTAssertTrue(app.navigationBars["Residents"].waitForExistence(timeout: 20),
+                      "Testing access should enter the staff residents shell")
+
+        app.tabBars.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10),
+                      "Staff settings should be reachable from the staff shell")
+
+        let switchPanel = app.tabBars.buttons["switch_panel_tab"]
+        XCTAssertTrue(switchPanel.waitForExistence(timeout: 10))
+        switchPanel.tap()
+
+        XCTAssertTrue(app.segmentedControls["panel_router"].waitForExistence(timeout: 10),
+                      "Switch Panel should return to the onboarding hero")
+    }
 }

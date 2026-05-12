@@ -217,7 +217,7 @@ struct PromotionalMaterialsView: View {
                 ("Website", WCSMarketingConfig.websiteURL),
                 ("Personal Link", WCSMarketingConfig.personalLinkURL),
                 ("Pricing", WCSMarketingConfig.pricingPageURL),
-                ("TestFlight", WCSMarketingConfig.testFlightURL),
+                ("Testing Programme", WCSMarketingConfig.testFlightURL),
                 ("Gumroad", WCSMarketingConfig.gumroadURL),
             ], id: \.0) { name, url in
                 Button {

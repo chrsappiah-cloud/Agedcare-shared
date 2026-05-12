@@ -39,7 +39,15 @@ final class AIMonitoringService: ObservableObject {
       return nil
     }
     let b64 = data.base64EncodedString()
-    return await analyzeMedia(b64, filename: url.lastPathComponent, mediaType: "video", facilityId: facilityId, residentId: residentId)
+    let context = incidentType.map { "Incident type: \($0.replacingOccurrences(of: "_", with: " "))" }
+    return await analyzeMedia(
+      b64,
+      filename: url.lastPathComponent,
+      mediaType: "video",
+      facilityId: facilityId,
+      residentId: residentId,
+      transcribedText: context
+    )
   }
 
   private func analyzeMedia(_ b64: String, filename: String, mediaType: String, facilityId: String, residentId: String? = nil, transcribedText: String? = nil) async -> MediaAnalysisResult? {

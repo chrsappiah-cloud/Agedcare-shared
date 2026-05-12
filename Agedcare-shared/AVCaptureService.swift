@@ -3,6 +3,52 @@ import UIKit
 import Combine
 import Photos
 
+enum IncidentSyncStatus: String, Codable {
+    case localOnly
+    case pendingUpload
+    case synced
+    case failed
+}
+
+struct IncidentLocationSnapshot: Codable, Equatable {
+    let locationName: String
+    let latitude: Double?
+    let longitude: Double?
+    let speedMetersPerSecond: Double?
+    let headingDegrees: Double?
+    let totalDistanceMeters: Double
+    let roomTemperatureCelsius: Double?
+    let roomTemperatureSource: String?
+    let capturedAt: Date
+
+    init(weatherSnapshot: WeatherSnapshot, capturedAt: Date = Date()) {
+        locationName = weatherSnapshot.locationName
+        latitude = weatherSnapshot.coordinate?.latitude
+        longitude = weatherSnapshot.coordinate?.longitude
+        speedMetersPerSecond = weatherSnapshot.currentSpeedMetersPerSecond
+        headingDegrees = weatherSnapshot.headingDegrees
+        totalDistanceMeters = weatherSnapshot.totalDistanceMeters
+        roomTemperatureCelsius = weatherSnapshot.roomTemperature
+        roomTemperatureSource = weatherSnapshot.roomTemperatureSourceDescription()
+        self.capturedAt = capturedAt
+    }
+
+    var coordinateDescription: String {
+        guard let latitude, let longitude else { return "Location unavailable" }
+        return String(format: "%.5f, %.5f", latitude, longitude)
+    }
+
+    var movementSummary: String {
+        if let speedMetersPerSecond, speedMetersPerSecond >= 0.4 {
+            return String(format: "Moving at %.1f km/h", speedMetersPerSecond * 3.6)
+        }
+        if totalDistanceMeters > 0 {
+            return "Stationary after moving \(Int(totalDistanceMeters.rounded())) m"
+        }
+        return "Movement not yet established"
+    }
+}
+
 enum CaptureError: LocalizedError {
     case cameraUnavailable
     case microphoneUnavailable
@@ -34,6 +80,7 @@ final class AVCaptureService: NSObject, ObservableObject {
     @Published var lastRecordingURL: URL?
     @Published var errorMessage: String?
     @Published var incidentRecordings: [IncidentRecording] = []
+    @Published var isCapturePipelineReady = false
 
     private(set) var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureMovieFileOutput?
@@ -54,6 +101,7 @@ final class AVCaptureService: NSObject, ObservableObject {
     private var incidentAssetWriter: AVAssetWriter?
     private var incidentWriterInput: AVAssetWriterInput?
     private var incidentStartTime: CMTime?
+    private var activeIncidentContext: ActiveIncidentContext?
 
     let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     let incidentsDir: URL
@@ -71,6 +119,7 @@ final class AVCaptureService: NSObject, ObservableObject {
     func requestAllPermissions() async {
         await requestCameraPermission()
         await requestMicrophonePermission()
+        await prepareCapturePipeline()
     }
 
     func requestCameraPermission() async {
@@ -99,7 +148,28 @@ final class AVCaptureService: NSObject, ObservableObject {
 
     // MARK: - Camera Session Setup
 
+    func prepareCapturePipeline() async {
+        guard isCameraAuthorized else {
+            isCapturePipelineReady = false
+            return
+        }
+
+        do {
+            try configureAudioSession()
+            if captureSession == nil {
+                try setupCaptureSession()
+            }
+            startCaptureSession()
+            isCapturePipelineReady = true
+            errorMessage = nil
+        } catch {
+            isCapturePipelineReady = false
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func setupCaptureSession() throws {
+        guard captureSession == nil else { return }
         let session = AVCaptureSession()
         session.beginConfiguration()
         session.sessionPreset = .high
@@ -159,6 +229,12 @@ final class AVCaptureService: NSObject, ObservableObject {
                 self.writeIncidentFrame(sampleBuffer)
             }
         }
+    }
+
+    private func configureAudioSession() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .videoRecording, options: [.defaultToSpeaker, .allowBluetooth])
+        try session.setActive(true)
     }
 
     func startCaptureSession() {
@@ -242,16 +318,33 @@ final class AVCaptureService: NSObject, ObservableObject {
 
     // MARK: - Incident Auto-Recording
 
-    func startIncidentRecording(type: String, residentId: UUID?) {
+    func startIncidentRecording(type: String, facilityId: UUID? = nil, residentId: UUID?) {
         guard !isAutoRecordingIncident else { return }
+        guard captureSession != nil else {
+            errorMessage = "Incident capture unavailable because the camera session is not ready"
+            return
+        }
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         let filename = "incident_\(type)_\(formatter.string(from: Date())).mov"
         let url = incidentsDir.appendingPathComponent(filename)
+        let locationSnapshot = IncidentLocationSnapshot(weatherSnapshot: LocationWeatherService.shared.snapshot)
+        let snapshotURL = saveIncidentSnapshot(type: type, timestamp: Date())
+        let syncStatus: IncidentSyncStatus = facilityId == nil ? .localOnly : .pendingUpload
+        activeIncidentContext = ActiveIncidentContext(
+            type: type,
+            facilityId: facilityId,
+            residentId: residentId,
+            duration: 30,
+            snapshotURL: snapshotURL,
+            locationSnapshot: locationSnapshot,
+            syncStatus: syncStatus
+        )
 
         guard let writer = try? AVAssetWriter(url: url, fileType: .mov) else {
             errorMessage = "Failed to create incident writer"
+            activeIncidentContext = nil
             return
         }
 
@@ -282,39 +375,56 @@ final class AVCaptureService: NSObject, ObservableObject {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-            self?.stopIncidentRecording(type: type, residentId: residentId)
+            self?.stopIncidentRecording(type: type, facilityId: facilityId, residentId: residentId)
         }
     }
 
-    func stopIncidentRecording(type: String, residentId: UUID?) {
+    func stopIncidentRecording(type: String, facilityId: UUID? = nil, residentId: UUID?) {
         guard isAutoRecordingIncident else { return }
         isAutoRecordingIncident = false
 
         guard let writer = incidentAssetWriter else { return }
         incidentWriterInput?.markAsFinished()
         let url = writer.outputURL
+        let context = activeIncidentContext ?? ActiveIncidentContext(
+            type: type,
+            facilityId: facilityId,
+            residentId: residentId,
+            duration: 30,
+            snapshotURL: nil,
+            locationSnapshot: IncidentLocationSnapshot(weatherSnapshot: LocationWeatherService.shared.snapshot),
+            syncStatus: facilityId == nil ? .localOnly : .pendingUpload
+        )
 
         writer.finishWriting { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 let recording = IncidentRecording(
                     id: UUID(),
-                    type: type,
+                    type: context.type,
                     timestamp: Date(),
                     fileURL: url,
-                    residentId: residentId,
-                    duration: 30,
-                    hasPreIncidentFootage: true
+                    residentId: context.residentId,
+                    duration: context.duration,
+                    hasPreIncidentFootage: true,
+                    facilityId: context.facilityId,
+                    snapshotURL: context.snapshotURL,
+                    locationSnapshot: context.locationSnapshot,
+                    syncStatus: context.syncStatus
                 )
                 self.incidentRecordings.append(recording)
                 self.persistIncidentRecordings()
                 self.lastRecordingURL = url
+                Task {
+                    await self.processIncidentRecording(recording)
+                }
             }
         }
 
         incidentAssetWriter = nil
         incidentWriterInput = nil
         incidentStartTime = nil
+        activeIncidentContext = nil
     }
 
     private func writeIncidentFrame(_ sampleBuffer: CMSampleBuffer) {
@@ -433,6 +543,9 @@ final class AVCaptureService: NSObject, ObservableObject {
 
     func deleteIncidentRecording(_ recording: IncidentRecording) {
         try? FileManager.default.removeItem(at: recording.fileURL)
+        if let snapshotURL = recording.snapshotURL {
+            try? FileManager.default.removeItem(at: snapshotURL)
+        }
         incidentRecordings.removeAll { $0.id == recording.id }
         persistIncidentRecordings()
     }
@@ -448,6 +561,54 @@ final class AVCaptureService: NSObject, ObservableObject {
             stopIncidentRecording(type: "manual_stop", residentId: nil)
         }
         captureSession = nil
+        isCapturePipelineReady = false
+    }
+
+    private func saveIncidentSnapshot(type: String, timestamp: Date) -> URL? {
+        guard let image = captureIncidentSnapshot(),
+              let data = image.jpegData(compressionQuality: 0.75) else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let filename = "incident_\(type)_\(formatter.string(from: timestamp)).jpg"
+        let url = incidentsDir.appendingPathComponent(filename)
+        do {
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            errorMessage = "Unable to save incident snapshot: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    private func processIncidentRecording(_ recording: IncidentRecording) async {
+        var updatedRecording = recording
+        guard let facilityId = recording.facilityId else {
+            updateIncidentRecording(updatedRecording)
+            return
+        }
+
+        if let analysis = await AIMonitoringService.shared.analyzeVideoFile(
+            at: recording.fileURL,
+            facilityId: facilityId.uuidString,
+            residentId: recording.residentId?.uuidString,
+            incidentType: recording.type
+        ) {
+            updatedRecording.syncStatus = .synced
+            updatedRecording.backendAnalysisID = analysis.id
+            updatedRecording.backendSummary = analysis.summary ?? analysis.insights.first
+            updatedRecording.backendMediaURL = URL(string: analysis.media_url)
+            updatedRecording.lastSyncedAt = Date()
+        } else {
+            updatedRecording.syncStatus = .failed
+            updatedRecording.syncError = AIMonitoringService.shared.errorMessage ?? "Incident upload to monitoring backend failed"
+        }
+        updateIncidentRecording(updatedRecording)
+    }
+
+    private func updateIncidentRecording(_ recording: IncidentRecording) {
+        guard let index = incidentRecordings.firstIndex(where: { $0.id == recording.id }) else { return }
+        incidentRecordings[index] = recording
+        persistIncidentRecordings()
     }
 }
 
@@ -461,6 +622,29 @@ struct IncidentRecording: Identifiable, Codable {
     let residentId: UUID?
     let duration: TimeInterval
     let hasPreIncidentFootage: Bool
+    let facilityId: UUID?
+    let snapshotURL: URL?
+    let locationSnapshot: IncidentLocationSnapshot?
+    var syncStatus: IncidentSyncStatus?
+    var syncError: String?
+    var backendAnalysisID: String?
+    var backendSummary: String?
+    var backendMediaURL: URL?
+    var lastSyncedAt: Date?
+
+    var resolvedSyncStatus: IncidentSyncStatus {
+        syncStatus ?? .localOnly
+    }
+}
+
+private struct ActiveIncidentContext {
+    let type: String
+    let facilityId: UUID?
+    let residentId: UUID?
+    let duration: TimeInterval
+    let snapshotURL: URL?
+    let locationSnapshot: IncidentLocationSnapshot?
+    let syncStatus: IncidentSyncStatus
 }
 
 // MARK: - Circular Frame Buffer (pre-incident recording)

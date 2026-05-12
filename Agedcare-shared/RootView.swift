@@ -53,6 +53,7 @@ struct RoleSelectionView: View {
 
   @EnvironmentObject var session: SessionViewModel
   @EnvironmentObject var accessibilityManager: AccessibilityManager
+  @StateObject private var backendHealth = BackendHealthService.shared
   @State private var showLogin = false
   @State private var showResidentSetup = false
   @State private var selectedRoute: PanelRoute = .resident
@@ -80,31 +81,76 @@ struct RoleSelectionView: View {
         LoginView()
           .environmentObject(session)
       }
+      .task { await backendHealth.refresh() }
     }
   }
 
   private var heroHeader: some View {
-    VStack(spacing: 6) {
-      Image(systemName: "heart.circle.fill")
-        .font(.system(size: 50))
-        .foregroundColor(AppTheme.emeraldRed)
-        .accessibilityHidden(true)
+    ZStack {
+      RoundedRectangle(cornerRadius: 30)
+        .fill(
+          LinearGradient(
+            colors: [
+              Color(red: 0.08, green: 0.10, blue: 0.22),
+              Color(red: 0.17, green: 0.38, blue: 0.48),
+              Color(red: 0.47, green: 0.16, blue: 0.43)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 30)
+            .stroke(.white.opacity(0.16), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.22), radius: 24, x: 0, y: 14)
 
-      Text("AgedCare")
-        .font(.largeTitle.bold())
-        .foregroundColor(AppTheme.textPrimary)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityLabel("Aged Care")
+      VStack(alignment: .leading, spacing: 18) {
+        HStack(alignment: .top) {
+          VStack(alignment: .leading, spacing: 10) {
+            Label("Live care intelligence", systemImage: "sparkles")
+              .font(.caption.bold())
+              .padding(.horizontal, 12)
+              .padding(.vertical, 7)
+              .background(.white.opacity(0.16))
+              .clipShape(Capsule())
 
-      Text("Compassionate care, connected")
-        .font(.subheadline)
-        .foregroundColor(AppTheme.darkChocolateLight)
+            Text("AgedCare")
+              .font(.system(size: 36, weight: .bold, design: .rounded))
+              .foregroundStyle(.white)
+              .accessibilityAddTraits(.isHeader)
+              .accessibilityLabel("Aged Care")
 
-      Text("Choose a panel to continue")
-        .font(.callout)
-        .foregroundColor(AppTheme.textSecondary)
-        .padding(.top, 4)
-        .accessibilityLabel("Choose a panel to continue")
+            Text("Futuristic monitoring, premium incident capture, and live staff response in one care platform.")
+              .font(.subheadline)
+              .foregroundStyle(.white.opacity(0.82))
+          }
+
+          Spacer()
+
+          ZStack {
+            Circle()
+              .fill(.white.opacity(0.10))
+              .frame(width: 68, height: 68)
+            Image(systemName: "heart.circle.fill")
+              .font(.system(size: 34))
+              .foregroundStyle(.white)
+          }
+          .accessibilityHidden(true)
+        }
+
+        HStack(spacing: 12) {
+          HeroMetricPill(title: "Preview", value: backendHealth.isDemoAccessReady ? "Ready" : "Checking")
+          HeroMetricPill(title: "Panels", value: "Resident + Staff")
+          HeroMetricPill(title: "Capture", value: "Video + Motion")
+        }
+
+        Text("Choose a panel to continue")
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(.white.opacity(0.92))
+          .accessibilityLabel("Choose a panel to continue")
+      }
+      .padding(24)
     }
   }
 
@@ -160,12 +206,37 @@ struct RoleSelectionView: View {
   }
 
   private var testAccountsFooter: some View {
-    Text("Test accounts: admin@gvcare.com / nurse@gvcare.com / carer@gvcare.com\nPassword: password")
-      .font(.caption)
-      .foregroundColor(AppTheme.textSecondary)
-      .multilineTextAlignment(.center)
-      .padding(.top, 8)
-      .accessibilityLabel("Test accounts available. Admin, nurse, and carer logins with password password")
+    VStack(spacing: 6) {
+      Text("Preview access: \(backendHealth.demoAccessStatus)")
+        .font(.caption)
+        .foregroundColor(backendHealth.isDemoAccessReady ? AppTheme.emeraldGreen : AppTheme.warning)
+        .multilineTextAlignment(.center)
+
+      if backendHealth.isDemoAccessReady {
+        Text("Staff preview sign-in is available now.")
+          .font(.caption2)
+          .foregroundColor(AppTheme.textSecondary)
+          .multilineTextAlignment(.center)
+      } else {
+        Text("Staff preview sign-in will appear automatically when care access is ready.")
+          .font(.caption2)
+          .foregroundColor(AppTheme.textSecondary)
+          .multilineTextAlignment(.center)
+      }
+
+      Text("Creator, administrator, and tester programme access is always available for Starter, Care Pro, and Care Team review.")
+        .font(.caption2)
+        .foregroundColor(AppTheme.textSecondary)
+        .multilineTextAlignment(.center)
+
+      Text("© 2026 World Class Scholars Productions. All rights reserved.")
+        .font(.caption2)
+        .foregroundStyle(.white.opacity(0.86))
+        .multilineTextAlignment(.center)
+        .padding(.top, 6)
+    }
+    .padding(.top, 8)
+    .accessibilityLabel("Preview access status: \(backendHealth.demoAccessStatus)")
   }
 }
 
@@ -206,18 +277,47 @@ private struct PanelCard: View {
       }
       .padding(18)
       .frame(maxWidth: .infinity)
-      .background(AppTheme.surface)
-      .cornerRadius(16)
+      .background(
+        LinearGradient(
+          colors: isHighlighted
+            ? [accentColor.opacity(0.20), .white.opacity(0.96)]
+            : [AppTheme.surface, AppTheme.diamondSilver.opacity(0.18)],
+          startPoint: .topLeading,
+          endPoint: .bottomTrailing
+        )
+      )
+      .cornerRadius(20)
       .overlay(
-        RoundedRectangle(cornerRadius: 16)
+        RoundedRectangle(cornerRadius: 20)
           .stroke(accentColor, lineWidth: isHighlighted ? 2.5 : 1)
       )
-      .shadow(color: AppTheme.darkChocolate.opacity(isHighlighted ? 0.12 : 0.06), radius: isHighlighted ? 10 : 6, x: 0, y: 4)
+      .shadow(color: accentColor.opacity(isHighlighted ? 0.20 : 0.08), radius: isHighlighted ? 14 : 8, x: 0, y: 8)
     }
     .buttonStyle(.plain)
     .accessibilityElement(children: .combine)
     .accessibilityIdentifier(accessibilityIdentifier)
     .accessibilityHint(accessibilityHint)
     .accessibilityAddTraits(.isButton)
+  }
+}
+
+private struct HeroMetricPill: View {
+  let title: String
+  let value: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title.uppercased())
+        .font(.caption2.bold())
+        .foregroundStyle(.white.opacity(0.68))
+      Text(value)
+        .font(.subheadline.bold())
+        .foregroundStyle(.white)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(.white.opacity(0.12))
+    .clipShape(RoundedRectangle(cornerRadius: 16))
   }
 }

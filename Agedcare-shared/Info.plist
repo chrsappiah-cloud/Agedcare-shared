@@ -51,6 +51,8 @@
 	</array>
 	<key>SupabaseAnonKey</key>
 	<string>sb_publishable_Y9mQj4l9v8cgCOKc5QfgpA_IwCqd89j</string>
+	<key>SupabaseBaseURL</key>
+	<string>https://izpwlqvuhdudzneqtecd.supabase.co</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>

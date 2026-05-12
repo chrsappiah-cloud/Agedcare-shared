@@ -47,32 +47,66 @@ struct LoginView: View {
           .accessibilityLabel("Login error: \(error)")
       }
 
-      Text("Backend: \(backendHealth.statusSummary)")
+      Text(backendHealth.statusSummary)
         .font(.caption)
         .foregroundColor(backendHealth.isHealthy ? AppTheme.emeraldGreen : AppTheme.warning)
         .multilineTextAlignment(.center)
 
-      Button(action: {
-        Task { await session.login(email: email, password: password) }
-      }) {
-        Text("Sign In")
-          .primaryButtonStyle()
-      }
-      .disabled(email.isEmpty || password.isEmpty)
-      .opacity(email.isEmpty || password.isEmpty ? 0.5 : 1)
-      .accessibilityHint("Signs you in with your email and password")
-      .accessibilityIdentifier("sign_in_button")
+      VStack(spacing: 8) {
+        Button(action: {
+          Task { await session.login(email: email, password: password) }
+        }) {
+          Text("Sign In")
+            .primaryButtonStyle()
+        }
+        .disabled(email.isEmpty || password.isEmpty)
+        .opacity(email.isEmpty || password.isEmpty ? 0.5 : 1)
+        .accessibilityHint("Signs you in with your email and password")
+        .accessibilityIdentifier("sign_in_button")
 
-      Text("Demo Access")
+        Text("Use your assigned care account, or continue with the testing programme below.")
+          .font(.caption2)
+          .foregroundColor(AppTheme.textSecondary)
+      }
+
+      Text("Testing Programme Access")
         .font(.subheadline.bold())
         .foregroundColor(AppTheme.darkChocolateLight)
         .padding(.top, 8)
         .accessibilityAddTraits(.isHeader)
 
       VStack(spacing: 10) {
-        DemoButton(title: "Admin — Dr. Sarah Chen", email: "admin@gvcare.com", password: "password", session: session)
-        DemoButton(title: "Nurse — John Smith", email: "nurse@gvcare.com", password: "password", session: session)
-        DemoButton(title: "Carer — Emma Davis", email: "carer@gvcare.com", password: "password", session: session)
+        Text("Creator, administrator, and tester cohorts are mapped to Starter, Care Pro, and Care Team access during preview review.")
+          .font(.caption)
+          .foregroundColor(AppTheme.textSecondary)
+          .multilineTextAlignment(.center)
+
+        ForEach(AppHost.testingAccessProfiles) { profile in
+          TestingAccessButton(profile: profile, session: session)
+        }
+      }
+      .accessibilityLabel("Subscription testing access")
+
+      Text("Preview Access")
+        .font(.subheadline.bold())
+        .foregroundColor(AppTheme.darkChocolateLight)
+        .padding(.top, 8)
+        .accessibilityAddTraits(.isHeader)
+
+      VStack(spacing: 10) {
+        Text(backendHealth.demoAccessStatus)
+          .font(.caption)
+          .foregroundColor(backendHealth.isDemoAccessReady ? AppTheme.emeraldGreen : AppTheme.warning)
+          .multilineTextAlignment(.center)
+
+        Text("Preview staff sign-in becomes available automatically when access checks are complete.")
+          .font(.caption2)
+          .foregroundColor(AppTheme.textSecondary)
+          .multilineTextAlignment(.center)
+
+        ForEach(backendHealth.configuredDemoProfiles) { profile in
+          DemoButton(profile: profile, session: session, isEnabled: backendHealth.isDemoAccessReady)
+        }
       }
       .accessibilityLabel("Demo accounts")
 
@@ -92,31 +126,77 @@ struct LoginView: View {
   }
 }
 
-private struct DemoButton: View {
-  let title: String
-  let email: String
-  let password: String
+private struct TestingAccessButton: View {
+  let profile: TestingAccessProfile
   let session: SessionViewModel
 
   var body: some View {
     Button(action: {
-      Task { await session.login(email: email, password: password) }
+      session.signInForTesting(profile)
+    }) {
+      VStack(alignment: .leading, spacing: 6) {
+        HStack {
+          Image(systemName: profile.accessKind == .creator ? "crown.fill" : "person.badge.key.fill")
+            .foregroundColor(AppTheme.emeraldGreen)
+            .accessibilityHidden(true)
+          Text(profile.title)
+            .font(.subheadline.bold())
+            .foregroundColor(AppTheme.textPrimary)
+          Spacer()
+          Text(profile.subscriptionTier.name)
+            .font(.caption2.bold())
+            .foregroundColor(AppTheme.textOnPrimary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(AppTheme.emeraldGreen)
+            .cornerRadius(6)
+            .accessibilityHidden(true)
+        }
+
+        Text("\(profile.accessKind.label) • \(profile.betaTrack.rawValue)")
+          .font(.caption)
+          .foregroundColor(AppTheme.textSecondary)
+
+        Text(profile.accessNotes)
+          .font(.caption2)
+          .foregroundColor(AppTheme.textSecondary)
+      }
+      .padding(.horizontal, 12)
+      .padding(.vertical, 10)
+      .background(AppTheme.diamondSilver.opacity(0.2))
+      .cornerRadius(8)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Enter as \(profile.title)")
+    .accessibilityHint("Signs in using the subscription testing plan")
+    .accessibilityIdentifier("testing_\(profile.id)")
+  }
+}
+
+private struct DemoButton: View {
+  let profile: DemoAccessProfile
+  let session: SessionViewModel
+  let isEnabled: Bool
+
+  var body: some View {
+    Button(action: {
+      Task { await session.login(email: profile.email, password: profile.password) }
     }) {
       HStack {
         Image(systemName: "person.circle.fill")
           .font(.caption)
           .foregroundColor(AppTheme.emeraldGreen)
           .accessibilityHidden(true)
-        Text(title)
+        Text(profile.title)
           .font(.caption)
-          .foregroundColor(AppTheme.textPrimary)
+          .foregroundColor(isEnabled ? AppTheme.textPrimary : AppTheme.textSecondary)
         Spacer()
-        Text("Tap")
+        Text(isEnabled ? "Tap" : "Offline")
           .font(.caption2.bold())
           .foregroundColor(AppTheme.textOnPrimary)
           .padding(.horizontal, 10)
           .padding(.vertical, 4)
-          .background(AppTheme.emeraldGreen)
+          .background(isEnabled ? AppTheme.emeraldGreen : AppTheme.warning)
           .cornerRadius(6)
           .accessibilityHidden(true)
       }
@@ -126,8 +206,10 @@ private struct DemoButton: View {
       .cornerRadius(8)
     }
     .buttonStyle(.plain)
-    .accessibilityLabel("Sign in as \(title)")
-    .accessibilityHint("Instantly signs in with a demo account")
-    .accessibilityIdentifier("demo_\(title.prefix(5))")
+    .disabled(!isEnabled)
+    .opacity(isEnabled ? 1 : 0.65)
+    .accessibilityLabel("Sign in as \(profile.title)")
+    .accessibilityHint(isEnabled ? "Instantly signs in with a preview account" : "Unavailable while access is being prepared")
+    .accessibilityIdentifier("demo_\(profile.title.prefix(5))")
   }
 }

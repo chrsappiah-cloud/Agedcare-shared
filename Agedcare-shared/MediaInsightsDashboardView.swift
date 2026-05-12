@@ -2,21 +2,25 @@ import SwiftUI
 
 struct MediaInsightsDashboardView: View {
   let staff: StaffUserModel
+  @EnvironmentObject var captureService: AVCaptureService
   @StateObject private var ai = AIMonitoringService.shared
   @State private var selectedTab: InsightsTab = .media
   @State private var showAudioMonitor = false
+  @State private var selectedIncident: IncidentRecording?
   private let refreshIntervalNanoseconds: UInt64 = 15_000_000_000
 
   enum InsightsTab: String, CaseIterable {
     case media = "AI Insights"
     case events = "Alert Events"
     case sessions = "Sessions"
+    case incidents = "Incident Video"
 
     var icon: String {
       switch self {
       case .media: return "waveform.and.magnifyingglass"
       case .events: return "bell.badge.fill"
       case .sessions: return "radio"
+      case .incidents: return "video.badge.waveform"
       }
     }
   }
@@ -59,6 +63,9 @@ struct MediaInsightsDashboardView: View {
       .sheet(isPresented: $showAudioMonitor) {
         AudioMonitorView(staff: staff, aiService: AIMonitoringService.shared)
       }
+      .fullScreenCover(item: $selectedIncident) { incident in
+        VideoPlayerView(url: incident.fileURL, title: incident.type.replacingOccurrences(of: "_", with: " ").capitalized)
+      }
     }
   }
 
@@ -82,6 +89,8 @@ struct MediaInsightsDashboardView: View {
       audioEventsList
     case .sessions:
       monitoringSessionsList
+    case .incidents:
+      incidentVideoList
     }
   }
 
@@ -142,6 +151,24 @@ struct MediaInsightsDashboardView: View {
     }
   }
 
+  private var incidentVideoList: some View {
+    List {
+      if relevantIncidentRecordings.isEmpty {
+        ContentUnavailableView(
+          "No Incident Video Yet",
+          systemImage: "video.badge.waveform",
+          description: Text("Automatic fall and injury clips will appear here after monitoring records them.")
+        )
+      }
+
+      ForEach(relevantIncidentRecordings) { incident in
+        IncidentRecordingRow(incident: incident) {
+          selectedIncident = incident
+        }
+      }
+    }
+  }
+
   private func refreshAll() async {
     async let insights: () = ai.fetchInsights(facilityId: staff.facilityId.uuidString)
     async let events: () = ai.fetchRecentEvents(facilityId: staff.facilityId.uuidString)
@@ -154,6 +181,12 @@ struct MediaInsightsDashboardView: View {
       await refreshAll()
       try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
     }
+  }
+
+  private var relevantIncidentRecordings: [IncidentRecording] {
+    captureService.incidentRecordings
+      .filter { $0.facilityId == nil || $0.facilityId == staff.facilityId }
+      .sorted(by: { $0.timestamp > $1.timestamp })
   }
 }
 
@@ -241,6 +274,103 @@ struct MediaInsightRow: View {
     case "positive": return .green
     case "concern", "attention": return .orange
     default: return .gray
+    }
+  }
+}
+
+struct IncidentRecordingRow: View {
+  let incident: IncidentRecording
+  let onOpen: () -> Void
+
+  var body: some View {
+    Button(action: onOpen) {
+      HStack(spacing: 12) {
+        thumbnail
+        VStack(alignment: .leading, spacing: 6) {
+          HStack {
+            Text(incident.type.replacingOccurrences(of: "_", with: " ").capitalized)
+              .font(.subheadline.bold())
+              .foregroundColor(AppTheme.textPrimary)
+            Spacer()
+            syncBadge
+          }
+
+          Text(incident.timestamp.formatted(date: .abbreviated, time: .shortened))
+            .font(.caption)
+            .foregroundColor(.secondary)
+
+          if let location = incident.locationSnapshot {
+            Text("\(location.coordinateDescription) • \(location.movementSummary)")
+              .font(.caption2)
+              .foregroundColor(.secondary)
+              .lineLimit(2)
+          }
+
+          if let summary = incident.backendSummary {
+            Text(summary)
+              .font(.caption2)
+              .foregroundColor(.secondary)
+              .lineLimit(2)
+          } else if let error = incident.syncError {
+            Text(error)
+              .font(.caption2)
+              .foregroundColor(.orange)
+              .lineLimit(2)
+          }
+        }
+        Image(systemName: "chevron.right")
+          .font(.caption.bold())
+          .foregroundColor(.secondary)
+      }
+      .padding(.vertical, 4)
+    }
+    .buttonStyle(.plain)
+  }
+
+  private var thumbnail: some View {
+    Group {
+      if let snapshotURL = incident.snapshotURL,
+         let image = UIImage(contentsOfFile: snapshotURL.path) {
+        Image(uiImage: image)
+          .resizable()
+          .scaledToFill()
+      } else {
+        ZStack {
+          RoundedRectangle(cornerRadius: 14).fill(Color(.secondarySystemBackground))
+          Image(systemName: "video.fill")
+            .foregroundColor(AppTheme.emeraldGreen)
+        }
+      }
+    }
+    .frame(width: 88, height: 70)
+    .clipShape(RoundedRectangle(cornerRadius: 14))
+  }
+
+  private var syncBadge: some View {
+    Text(label(for: incident.resolvedSyncStatus))
+      .font(.caption2.bold())
+      .foregroundColor(.white)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 4)
+      .background(color(for: incident.resolvedSyncStatus))
+      .cornerRadius(999)
+  }
+
+  private func label(for status: IncidentSyncStatus) -> String {
+    switch status {
+    case .localOnly: return "Local"
+    case .pendingUpload: return "Syncing"
+    case .synced: return "Live"
+    case .failed: return "Retry"
+    }
+  }
+
+  private func color(for status: IncidentSyncStatus) -> Color {
+    switch status {
+    case .localOnly: return AppTheme.darkChocolateLight
+    case .pendingUpload: return AppTheme.warning
+    case .synced: return AppTheme.emeraldGreen
+    case .failed: return AppTheme.emeraldRed
     }
   }
 }

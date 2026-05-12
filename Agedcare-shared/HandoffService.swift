@@ -136,8 +136,8 @@ final class HandoffService: NSObject, ObservableObject {
   }
 
   @discardableResult
-  private func callRPC(_ name: String, body: [String: Any]) async throws -> Data {
-    var req = try requestFactory.makeRPCRequest(name)
+  private func callRPC(_ name: String, body: [String: Any], authorized: Bool = false) async throws -> Data {
+    var req = try requestFactory.makeRPCRequest(name, authorized: authorized)
     req.httpBody = try JSONSerialization.data(withJSONObject: body)
     let (data, resp) = try await URLSession.shared.data(for: req)
     guard let http = resp as? HTTPURLResponse, http.statusCode < 300 else {

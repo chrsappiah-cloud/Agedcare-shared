@@ -34,8 +34,10 @@ struct AgedCareApp: App {
   }
 
   private func initializeServices() async {
-    // 1. Push notifications
-    do {
+     WatchConnectivityService.shared.activateSessionIfNeeded()
+
+     // 1. Push notifications
+     do {
       try await PushNotificationService.shared.register()
       PushNotificationService.shared.registerForRemoteNotifications()
     } catch {
@@ -54,11 +56,12 @@ struct AgedCareApp: App {
       print("ℹ️ HealthKit init skipped: \(error.localizedDescription)")
     }
 
-    // 3. Camera & Microphone permissions
-    await captureService.requestAllPermissions()
+     // 3. Camera & Microphone permissions
+     await captureService.requestAllPermissions()
+     await captureService.prepareCapturePipeline()
 
-    // 4. Speech Recognition
-    await speechService.requestAuthorization()
+     // 4. Speech Recognition
+     await speechService.requestAuthorization()
 
     // 5. CloudKit alert sync
     #if canImport(CloudKit)

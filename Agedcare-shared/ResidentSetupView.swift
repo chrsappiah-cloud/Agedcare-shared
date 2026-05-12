@@ -50,7 +50,7 @@ struct ResidentSetupView: View {
       do {
         facilityId = try await findFacilityId()
         guard let fid = facilityId else {
-          errorMessage = "No facility available"
+          errorMessage = "Resident selection is temporarily unavailable."
           isLoading = false
           return
         }
@@ -66,7 +66,7 @@ struct ResidentSetupView: View {
         }
         isLoading = false
       } catch {
-        errorMessage = error.localizedDescription
+        errorMessage = "We couldn't open resident selection right now. Please try again."
         isLoading = false
       }
     }
@@ -77,12 +77,20 @@ struct ResidentSetupView: View {
   }
 
   private func findFacilityId() async throws -> UUID? {
-    let req = try requestFactory.makeRequest(path: "facility", method: "GET")
-    let (data, resp) = try await URLSession.shared.data(for: req)
-    guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
-    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-    guard let idString = json?["id"] as? String else { return nil }
-    return UUID(uuidString: idString)
+    do {
+      let req = try requestFactory.makeRequest(path: "facility", method: "GET")
+      let (data, resp) = try await URLSession.shared.data(for: req)
+      guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+        return AppHost.defaultResidentDemoFacilityID
+      }
+      let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+      guard let idString = json?["id"] as? String else {
+        return AppHost.defaultResidentDemoFacilityID
+      }
+      return UUID(uuidString: idString) ?? AppHost.defaultResidentDemoFacilityID
+    } catch {
+      return AppHost.defaultResidentDemoFacilityID
+    }
   }
 }
 

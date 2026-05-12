@@ -72,6 +72,11 @@ struct WatchPreviewView: View {
 
         Divider().background(AppTheme.diamondSilver.opacity(0.3))
 
+        Text(vm.watchStatusSummary)
+          .font(.system(size: 8, weight: .medium))
+          .foregroundColor(AppTheme.diamondSilver)
+          .multilineTextAlignment(.center)
+
         Label {
           Text("\(vm.heartRate) bpm")
             .font(.caption.bold())
@@ -222,6 +227,7 @@ final class WatchPreviewViewModel: ObservableObject {
   @Published var isWatchReachable = false
   @Published var lastSync = Date()
   @Published var alerts: [PreviewAlert] = []
+  @Published var watchStatusSummary = WatchConnectivityService.shared.statusSummary
 
   struct PreviewAlert: Identifiable, Codable {
     let id: UUID
@@ -237,8 +243,9 @@ final class WatchPreviewViewModel: ObservableObject {
   init() {
     isWatchReachable = WatchConnectivityService.shared.isReachable
     Task { @MainActor [weak self] in
-      for await _ in NotificationCenter.default.notifications(named: .init("WCSessionReachabilityChanged")) {
+      for await _ in NotificationCenter.default.notifications(named: .watchConnectivityStateDidChange) {
         self?.isWatchReachable = WatchConnectivityService.shared.isReachable
+        self?.watchStatusSummary = WatchConnectivityService.shared.statusSummary
       }
     }
   }

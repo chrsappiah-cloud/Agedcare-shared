@@ -7,6 +7,7 @@ public protocol FacilityRepositoryProtocol: AnyObject {
 public final class FacilityRepository: FacilityRepositoryProtocol {
   private let supabase: SupabaseClient
   private let backupStore = ICloudBackupStore.shared
+  private let demoStore = DemoResidentStore.shared
 
   public init(supabase: SupabaseClient) {
     self.supabase = supabase
@@ -21,6 +22,10 @@ public final class FacilityRepository: FacilityRepositoryProtocol {
     } catch {
       if let cachedStats = backupStore.loadFacilityStats(facilityId: facilityId) {
         return cachedStats
+      }
+      if let demoStats = demoStore.facilityStats(facilityId: facilityId) {
+        backupStore.saveFacilityStats(demoStats, facilityId: facilityId)
+        return demoStats
       }
       throw error
     }

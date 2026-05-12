@@ -47,6 +47,7 @@ final class AlertViewModel: ObservableObject {
         return
       }
       alerts = try await repo.getOpenAlerts(facilityId: facilityId)
+      WatchConnectivityService.shared.syncOpenAlerts(alerts, facilityId: facilityId.uuidString)
     } catch {
       loadError = error.localizedDescription
     }

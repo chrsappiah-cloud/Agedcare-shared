@@ -17,12 +17,16 @@ struct StaffUserModelTests {
         #expect(staff.role == "nurse")
         #expect(staff.displayName == "Jane")
         #expect(staff.email == "jane@test.com")
+        #expect(staff.subscriptionTier == .starter)
+        #expect(staff.accessSource == .backend)
     }
 
     @Test func staffModelWithNilOptionals() {
         let staff = StaffUserModel(id: UUID(), facilityId: UUID(), role: "admin", displayName: nil, email: nil)
         #expect(staff.displayName == nil)
         #expect(staff.email == nil)
+        #expect(staff.betaTrack == nil)
+        #expect(staff.accessNotes == nil)
     }
 }
 
@@ -312,6 +316,48 @@ struct ShellModeTests {
     }
 }
 
+@Suite("WatchConnectivity Payload Tests")
+struct WatchConnectivityPayloadTests {
+    @Test func residentWatchPayloadStoresCriticalMonitoringState() {
+        let payload = WatchConnectivityService.WatchResidentSyncPayload(
+            facilityId: UUID().uuidString,
+            residentId: UUID().uuidString,
+            statusText: "Fall Detected",
+            isMonitoringActive: true,
+            isRecordingIncident: true,
+            fallRisk: "high",
+            heartRate: "118 bpm",
+            bloodOxygen: "96%",
+            locationName: "Resident Wing A",
+            movementSummary: "Moving at 1.2 km/h",
+            recordedAt: ISO8601DateFormatter().string(from: Date())
+        )
+
+        #expect(payload.isMonitoringActive)
+        #expect(payload.isRecordingIncident)
+        #expect(payload.statusText == "Fall Detected")
+        #expect(payload.heartRate == "118 bpm")
+    }
+
+    @Test func watchAlertSummaryEncodesCoreAlertFields() throws {
+        let summary = WatchConnectivityService.WatchAlertSummary(
+            id: 42,
+            residentId: UUID().uuidString,
+            type: "fall",
+            status: "open",
+            priority: 3,
+            createdAt: "2026-05-12T10:00:00Z"
+        )
+
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(WatchConnectivityService.WatchAlertSummary.self, from: data)
+
+        #expect(decoded.id == 42)
+        #expect(decoded.type == "fall")
+        #expect(decoded.priority == 3)
+    }
+}
+
 // MARK: - AppHost Tests
 
 @Suite("AppHost Tests")
@@ -319,6 +365,39 @@ struct AppHostTests {
     @Test func baseURLIsValid() {
         let url = AppHost.baseURL
         #expect(url.scheme == "http" || url.scheme == "https")
+    }
+
+    @Test func testingAccessProfilesCoverCreatorAdminAndTesters() {
+        let profiles = AppHost.testingAccessProfiles
+        #expect(profiles.contains { $0.accessKind == .creator })
+        #expect(profiles.contains { $0.accessKind == .administrator })
+        #expect(profiles.filter { $0.accessKind == .tester }.count >= 3)
+        #expect(profiles.map(\.subscriptionTier).contains(.starter))
+        #expect(profiles.map(\.subscriptionTier).contains(.carePro))
+        #expect(profiles.map(\.subscriptionTier).contains(.careTeam))
+    }
+
+    @Test func residentDemoFacilityAvailable() {
+        #expect(AppHost.defaultResidentDemoFacilityID != nil)
+    }
+}
+
+@Suite("Resident Demo Store Tests")
+struct ResidentDemoStoreTests {
+    @Test func testingFacilitiesHaveResidents() {
+        let store = DemoResidentStore.shared
+        for profile in AppHost.testingAccessProfiles {
+            let residents = store.residents(facilityId: profile.facilityId)
+            #expect(residents?.isEmpty == false)
+        }
+    }
+
+    @Test func demoResidentsProvideTimelineAndCounts() {
+        let store = DemoResidentStore.shared
+        let facilityID = AppHost.defaultResidentDemoFacilityID!
+        let resident = try! #require(store.residents(facilityId: facilityID)?.first)
+        #expect(store.timeline(residentId: resident.id, limit: 10)?.isEmpty == false)
+        #expect(store.fallCount(residentId: resident.id, days: 30) != nil)
     }
 }
 
@@ -570,6 +649,48 @@ struct BackendHealthProbeTests {
         snap.outdoorTemperature = 0.0   // 0 °C = 32 °F
         let result = snap.formattedOutdoorTemp(unit: .fahrenheit)
         #expect(result == "32.0 °F")
+    }
+
+    @Test func incidentLocationSnapshotPreservesMovementMetadata() {
+        var snap = WeatherSnapshot()
+        snap.locationName = "Resident Wing A"
+        snap.coordinate = .init(latitude: -37.8136, longitude: 144.9631)
+        snap.currentSpeedMetersPerSecond = 1.2
+        snap.totalDistanceMeters = 18
+        snap.actualRoomTemperature = 23.4
+        snap.roomTemperatureSource = "Home sensor"
+
+        let incident = IncidentLocationSnapshot(weatherSnapshot: snap)
+
+        #expect(incident.locationName == "Resident Wing A")
+        #expect(incident.latitude == -37.8136)
+        #expect(incident.longitude == 144.9631)
+        #expect(incident.roomTemperatureCelsius == 23.4)
+        #expect(incident.roomTemperatureSource == "Home sensor")
+        #expect(incident.movementSummary.contains("Moving"))
+    }
+
+    @Test func incidentRecordingDefaultsToLocalStatusWhenLegacyDataHasNoSyncState() {
+        let recording = IncidentRecording(
+            id: UUID(),
+            type: "fall",
+            timestamp: Date(),
+            fileURL: URL(fileURLWithPath: "/tmp/fall.mov"),
+            residentId: nil,
+            duration: 30,
+            hasPreIncidentFootage: true,
+            facilityId: nil,
+            snapshotURL: nil,
+            locationSnapshot: nil,
+            syncStatus: nil,
+            syncError: nil,
+            backendAnalysisID: nil,
+            backendSummary: nil,
+            backendMediaURL: nil,
+            lastSyncedAt: nil
+        )
+
+        #expect(recording.resolvedSyncStatus == .localOnly)
     }
 
     /// The Vercel marketing site (also linked from the app footer) must respond.

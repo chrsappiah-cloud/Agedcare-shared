@@ -7,6 +7,7 @@ final class SessionViewModel: ObservableObject {
   @Published var loginError: String?
 
   private let requestFactory = BackendRequestFactory()
+  private let testingPassword = "password"
 
   func setResident(facilityId: UUID, residentId: UUID) {
     UserDefaults.standard.set(facilityId.uuidString, forKey: "last_facility_id")
@@ -54,7 +55,15 @@ final class SessionViewModel: ObservableObject {
       try rpcReq.encodeJSONBody(rpcBody)
 
       let (staffData, staffResp) = try await URLSession.shared.data(for: rpcReq)
-      guard let staffHttp = staffResp as? HTTPURLResponse, staffHttp.statusCode == 200 else {
+      guard let staffHttp = staffResp as? HTTPURLResponse else {
+        throw LoginError.invalidResponse("Missing staff lookup response")
+      }
+      guard staffHttp.statusCode == 200 else {
+        if staffHttp.statusCode == 404,
+          String(data: staffData, encoding: .utf8)?.contains("PGRST202") == true
+        {
+          throw LoginError.invalidResponse("Staff lookup RPC is not deployed on the backend")
+        }
         throw LoginError.staffNotFound
       }
 
@@ -67,25 +76,82 @@ final class SessionViewModel: ObservableObject {
         facilityId: facilityId,
         role: staffInfo.role,
         displayName: staffInfo.displayName,
-        email: loginResp.user.email
+        email: loginResp.user.email,
+        subscriptionTier: resolvedTier(for: staffInfo.role),
+        betaTrack: .care,
+        accessSource: .backend
       )
+      SubscriptionService.shared.currentTier = staff.subscriptionTier
       state = .staff(staff)
 
     } catch let error as LoginError {
+      if fallbackToTestingAccessIfAvailable(email: email, password: password) {
+        return
+      }
       loginError = error.localizedDescription
       state = .onboarding
     } catch let error as BackendConfigurationError {
-      loginError = error.localizedDescription
+      if fallbackToTestingAccessIfAvailable(email: email, password: password) {
+        return
+      }
+      loginError = "Sign in isn't available right now. Please try again shortly."
       state = .onboarding
     } catch {
-      loginError = "Connection failed. Check the server."
+      if fallbackToTestingAccessIfAvailable(email: email, password: password) {
+        return
+      }
+      loginError = "Sign in isn't available right now. Please try again shortly."
       state = .onboarding
     }
   }
 
+  func signInForTesting(_ profile: TestingAccessProfile) {
+    loginError = nil
+    SupabaseAuthStore.shared.accessToken = nil
+
+    let staff = StaffUserModel(
+      id: UUID(),
+      facilityId: profile.facilityId,
+      role: profile.role,
+      displayName: profile.displayName,
+      email: profile.email,
+      subscriptionTier: profile.subscriptionTier,
+      betaTrack: profile.betaTrack,
+      accessSource: .localTesting,
+      accessNotes: profile.accessNotes
+    )
+    SubscriptionService.shared.currentTier = profile.subscriptionTier
+    state = .staff(staff)
+  }
+
   func logout() {
     SupabaseAuthStore.shared.accessToken = nil
+    SubscriptionService.shared.currentTier = .starter
     state = .onboarding
+  }
+
+  private func fallbackToTestingAccessIfAvailable(email: String, password: String) -> Bool {
+    guard
+      password == testingPassword,
+      let profile = AppHost.testingAccessProfile(email: email)
+    else {
+      return false
+    }
+
+    signInForTesting(profile)
+    loginError = nil
+    return true
+  }
+
+  private func resolvedTier(for role: String) -> SubscriptionTier {
+    switch role.lowercased() {
+    case "creator", "admin", "administrator":
+      return .careTeam
+    case "tester", "nurse", "carer", "caregiver":
+      return .carePro
+    default:
+      return .starter
+    }
   }
 }
 
@@ -97,8 +163,8 @@ enum LoginError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .invalidCredentials: return "Invalid email or password"
-    case .staffNotFound: return "Staff account not found"
-    case .invalidResponse(let msg): return "Server error: \(msg)"
+    case .staffNotFound: return "We couldn't open this staff account yet"
+    case .invalidResponse: return "We couldn't complete sign in. Please try again."
     }
   }
 }

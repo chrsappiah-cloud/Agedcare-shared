@@ -19,6 +19,17 @@ struct ResidentTimelineView: View {
       }
     }
     .navigationTitle("Timeline")
+    .safeAreaInset(edge: .top) {
+      if DemoResidentStore.shared.containsResident(resident.id) {
+        Text("Resident timeline updates are ready for this care view.")
+          .font(.caption)
+          .foregroundColor(AppTheme.textPrimary)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .frame(maxWidth: .infinity)
+          .background(AppTheme.emeraldGreen.opacity(0.14))
+      }
+    }
     .task { await liveRefreshLoop() }
     .overlay {
       if entries.isEmpty {
@@ -43,7 +54,7 @@ struct ResidentTimelineView: View {
       entries = try await container.residentsRepository.getTimeline(residentId: resident.id)
       loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      loadError = "Timeline updates are temporarily unavailable. Please try again shortly."
     }
   }
 }
