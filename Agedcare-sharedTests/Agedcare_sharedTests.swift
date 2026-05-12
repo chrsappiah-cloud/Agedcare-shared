@@ -172,6 +172,19 @@ struct SubscriptionTierTests {
         #expect(SubscriptionTier.starter.productId == nil)
     }
 
+    @Test func productIdMapsToTier() {
+        #expect(SubscriptionTier.from(productId: "wcs.Agedcare_shared.care_pro_monthly") == .carePro)
+        #expect(SubscriptionTier.from(productId: "wcs.Agedcare_shared.care_team_annual") == .careTeam)
+        #expect(SubscriptionTier.from(productId: "unknown.plan") == nil)
+    }
+
+    @Test func serverValueMapsToTier() {
+        #expect(SubscriptionTier.from(serverValue: "care_pro") == .carePro)
+        #expect(SubscriptionTier.from(serverValue: "CARE_TEAM") == .careTeam)
+        #expect(SubscriptionTier.from(serverValue: "starter") == .starter)
+        #expect(SubscriptionTier.from(serverValue: "enterprise") == nil)
+    }
+
     @Test func rawValueRoundTrip() {
         for tier in SubscriptionTier.allCases {
             #expect(SubscriptionTier(rawValue: tier.rawValue) == tier)

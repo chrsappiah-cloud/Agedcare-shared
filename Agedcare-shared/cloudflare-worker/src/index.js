@@ -12,6 +12,13 @@ const PRIMARY_PATH_PREFIXES = [
   "/ai/",
 ];
 
+const APPLE_VERIFY_RECEIPT_URL = "https://buy.itunes.apple.com/verifyReceipt";
+const APPLE_SANDBOX_VERIFY_RECEIPT_URL = "https://sandbox.itunes.apple.com/verifyReceipt";
+const PRODUCT_TIER_BY_ID = {
+  "wcs.Agedcare_shared.care_pro_monthly": "care_pro",
+  "wcs.Agedcare_shared.care_team_annual": "care_team",
+};
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -32,12 +39,17 @@ export default {
             supabase: Boolean(env.SUPABASE_URL),
             primaryApi: Boolean(env.PRIMARY_API_URL),
             aiApi: Boolean(env.AI_API_URL),
+            subscriptionValidation: Boolean(env.APPLE_SHARED_SECRET),
           },
         },
         200,
         request,
         env
       );
+    }
+
+    if (url.pathname === "/billing/validate-receipt") {
+      return handleReceiptValidation(request, env);
     }
 
     const upstreamBaseURL = resolveUpstream(url.pathname, env);
@@ -78,6 +90,175 @@ export default {
     return withCors(response, request, env);
   },
 };
+
+async function handleReceiptValidation(request, env) {
+  if (request.method !== "POST") {
+    return json(
+      {
+        valid: false,
+        isActive: false,
+        status: 405,
+        message: "Use POST for receipt validation.",
+      },
+      405,
+      request,
+      env
+    );
+  }
+
+  if (!env.APPLE_SHARED_SECRET) {
+    return json(
+      {
+        valid: false,
+        isActive: false,
+        status: 503,
+        message: "Subscription validation is not configured.",
+      },
+      503,
+      request,
+      env
+    );
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return json(
+      {
+        valid: false,
+        isActive: false,
+        status: 400,
+        message: "Invalid receipt payload.",
+      },
+      400,
+      request,
+      env
+    );
+  }
+
+  const receiptData = typeof payload?.receiptData === "string" ? payload.receiptData.trim() : "";
+  if (!receiptData) {
+    return json(
+      {
+        valid: false,
+        isActive: false,
+        status: 400,
+        message: "Receipt data is required.",
+      },
+      400,
+      request,
+      env
+    );
+  }
+
+  let verification = await verifyReceiptWithApple(receiptData, env, APPLE_VERIFY_RECEIPT_URL);
+  if (verification.status === 21007) {
+    verification = await verifyReceiptWithApple(receiptData, env, APPLE_SANDBOX_VERIFY_RECEIPT_URL);
+  }
+
+  const entitlement = resolveEntitlement(verification);
+  const normalized = {
+    valid: verification.status === 0,
+    isActive: entitlement.isActive,
+    status: verification.status,
+    environment: verification.environment || null,
+    currentTier: entitlement.currentTier,
+    productID: entitlement.productID,
+    expiresAt: entitlement.expiresAt,
+    message:
+      verification.status === 0
+        ? entitlement.isActive
+          ? "Subscription validated."
+          : "Receipt validated without an active paid subscription."
+        : "Receipt validation failed.",
+  };
+
+  return json(normalized, verification.status === 0 ? 200 : 422, request, env);
+}
+
+async function verifyReceiptWithApple(receiptData, env, endpoint) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      "receipt-data": receiptData,
+      password: env.APPLE_SHARED_SECRET,
+      "exclude-old-transactions": true,
+    }),
+  });
+
+  if (!response.ok) {
+    return {
+      status: response.status,
+      environment: null,
+      receipt: null,
+    };
+  }
+
+  return response.json();
+}
+
+function resolveEntitlement(verification) {
+  const candidates = collectCandidates(verification);
+  const now = Date.now();
+  const active = candidates
+    .filter((candidate) => candidate.currentTier && candidate.expiresAtMs && candidate.expiresAtMs > now)
+    .sort((left, right) => right.expiresAtMs - left.expiresAtMs)[0];
+
+  if (!active) {
+    return {
+      isActive: false,
+      currentTier: null,
+      productID: null,
+      expiresAt: null,
+    };
+  }
+
+  return {
+    isActive: true,
+    currentTier: active.currentTier,
+    productID: active.productID,
+    expiresAt: new Date(active.expiresAtMs).toISOString(),
+  };
+}
+
+function collectCandidates(verification) {
+  const latestReceiptInfo = Array.isArray(verification?.latest_receipt_info)
+    ? verification.latest_receipt_info
+    : [];
+  const inApp = Array.isArray(verification?.receipt?.in_app) ? verification.receipt.in_app : [];
+
+  return [...latestReceiptInfo, ...inApp]
+    .map((entry) => {
+      const productID = typeof entry?.product_id === "string" ? entry.product_id : null;
+      const currentTier = productID ? PRODUCT_TIER_BY_ID[productID] || null : null;
+      const expiresAtMs = parseMilliseconds(entry?.expires_date_ms);
+
+      return {
+        currentTier,
+        productID,
+        expiresAtMs,
+      };
+    })
+    .filter((entry) => entry.currentTier);
+}
+
+function parseMilliseconds(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
 
 function resolveUpstream(pathname, env) {
   if (shouldUseSupabase(pathname)) {
