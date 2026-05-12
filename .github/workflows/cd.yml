@@ -124,6 +124,11 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
+          if /usr/libexec/PlistBuddy -c "Print :signingStyle" ExportOptions.plist 2>/dev/null | grep -qi '^automatic$'; then
+            echo "Automatic signing enabled in ExportOptions.plist; skipping fixed provisioning profile install."
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -z "${BUILD_PROVISION_PROFILE_BASE64:-}" ]; then
             echo "No BUILD_PROVISION_PROFILE_BASE64 secret configured; skipping profile install."
             echo "installed=false" >> "$GITHUB_OUTPUT"
@@ -182,25 +187,16 @@ jobs:
           test -d "$RUNNER_TEMP/$SCHEME.xcarchive"
 
       - name: Export IPA
-        env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
         run: |
           set -euo pipefail
-          if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ]; then
-            xcodebuild -exportArchive \
-              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-              -exportOptionsPlist ExportOptions.plist \
-              -exportPath "$RUNNER_TEMP/export" \
-              -allowProvisioningUpdates \
-              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
-              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
-          else
-            xcodebuild -exportArchive \
-              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-              -exportOptionsPlist ExportOptions.plist \
-              -exportPath "$RUNNER_TEMP/export"
-          fi
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
           ls -la "$RUNNER_TEMP/export"
 
       - name: Validate IPA against App Store Connect
