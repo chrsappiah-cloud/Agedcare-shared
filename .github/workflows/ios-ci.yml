@@ -26,15 +26,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DESTINATION_LINE=$(xcodebuild -project Agedcare-shared.xcodeproj -scheme Agedcare-shared -showdestinations 2>/dev/null | awk '/platform:iOS Simulator/ && /name:iPhone/ { line=$0 } END { print line }')
-          if [ -z "${DESTINATION_LINE:-}" ]; then
+          DESTINATION=$(xcrun simctl list devices available --json | jq -r '
+            [
+              .devices
+              | to_entries[]
+              | select(.key | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
+              | .key as $runtime
+              | .value[]
+              | select(.isAvailable == true and (.name | startswith("iPhone")))
+              | {
+                  runtime: ($runtime | sub("com.apple.CoreSimulator.SimRuntime.iOS-"; "") | split("-") | map(tonumber? // 0)),
+                  name,
+                  udid
+                }
+            ]
+            | sort_by(.runtime[0], .runtime[1], .runtime[2], .name)
+            | last // empty
+            | [.udid, .name]
+            | @tsv
+          ')
+          if [ -z "${DESTINATION:-}" ]; then
             echo "No iPhone simulator destination was found." >&2
             exit 1
           fi
-          SIMULATOR_ID=$(printf '%s\n' "$DESTINATION_LINE" | sed -E 's/.*id:([^,]+), OS:.*/\1/')
-          SIMULATOR_NAME=$(printf '%s\n' "$DESTINATION_LINE" | sed -E 's/.*name:([^}]*) }.*/\1/')
-          if [ -z "${SIMULATOR_ID:-}" ] || [ "$SIMULATOR_ID" = "$DESTINATION_LINE" ]; then
-            echo "Unable to resolve simulator UDID from: $DESTINATION_LINE" >&2
+          SIMULATOR_ID=$(printf '%s\n' "$DESTINATION" | cut -f1)
+          SIMULATOR_NAME=$(printf '%s\n' "$DESTINATION" | cut -f2-)
+          if [ -z "${SIMULATOR_ID:-}" ]; then
+            echo "Unable to resolve simulator UDID from: $DESTINATION" >&2
             exit 1
           fi
           echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
