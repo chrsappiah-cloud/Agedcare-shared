@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PROJECT: Agedcare-shared.xcodeproj
+  SCHEME: Agedcare-shared
+
 jobs:
 
   # ── Lint ─────────────────────────────────────────────────────────────────
@@ -50,8 +54,8 @@ jobs:
           node-version: "22"
       - name: Validate worker syntax
         run: |
-          if [ -f cloudflare-worker/src/index.js ]; then
-            node --check cloudflare-worker/src/index.js
+          if [ -f Agedcare-shared/cloudflare-worker/src/index.js ]; then
+            node --check Agedcare-shared/cloudflare-worker/src/index.js
           else
             echo "No Cloudflare worker present"
           fi
@@ -72,12 +76,34 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Resolve available simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          DESTINATION_LINE=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null | awk '/platform:iOS Simulator/ && /name:iPhone/ { line=$0 } END { print line }')
+          if [ -z "${DESTINATION_LINE:-}" ]; then
+            echo "No iPhone simulator destination was found." >&2
+            exit 1
+          fi
+          SIMULATOR_ID=$(printf '%s\n' "$DESTINATION_LINE" | sed -E 's/.*id:([^,]+), OS:.*/\1/')
+          SIMULATOR_NAME=$(printf '%s\n' "$DESTINATION_LINE" | sed -E 's/.*name:([^}]*) }.*/\1/')
+          if [ -z "${SIMULATOR_ID:-}" ] || [ "$SIMULATOR_ID" = "$DESTINATION_LINE" ]; then
+            echo "Unable to resolve simulator UDID from: $DESTINATION_LINE" >&2
+            exit 1
+          fi
+          echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
+          echo "name=$SIMULATOR_NAME" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$SIMULATOR_ID" || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+
       - name: Build
         run: |
           xcodebuild build \
-            -project Agedcare-shared.xcodeproj \
-            -scheme Agedcare-shared \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "id=${{ steps.simulator.outputs.id }}" \
+            -destination-timeout 180 \
             -configuration Debug \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
@@ -86,10 +112,12 @@ jobs:
       - name: Run Unit Tests
         run: |
           xcodebuild test \
-            -project Agedcare-shared.xcodeproj \
-            -scheme Agedcare-shared \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "id=${{ steps.simulator.outputs.id }}" \
+            -destination-timeout 180 \
             -parallel-testing-enabled NO \
+            -maximum-concurrent-test-simulator-destinations 1 \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
             -only-testing:Agedcare-sharedTests \
@@ -127,12 +155,32 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.4.app/Contents/Developer
 
+      - name: Resolve available simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          DESTINATION_LINE=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null | awk '/platform:iOS Simulator/ && /name:iPhone/ { line=$0 } END { print line }')
+          if [ -z "${DESTINATION_LINE:-}" ]; then
+            echo "No iPhone simulator destination was found." >&2
+            exit 1
+          fi
+          SIMULATOR_ID=$(printf '%s\n' "$DESTINATION_LINE" | sed -E 's/.*id:([^,]+), OS:.*/\1/')
+          if [ -z "${SIMULATOR_ID:-}" ] || [ "$SIMULATOR_ID" = "$DESTINATION_LINE" ]; then
+            echo "Unable to resolve simulator UDID from: $DESTINATION_LINE" >&2
+            exit 1
+          fi
+          echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$SIMULATOR_ID" || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+
       - name: Run UI Tests (Hero Page)
         run: |
           xcodebuild test \
-            -project Agedcare-shared.xcodeproj \
-            -scheme Agedcare-shared \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "id=${{ steps.simulator.outputs.id }}" \
+            -destination-timeout 180 \
             -resultBundlePath UITestResults.xcresult \
             -only-testing:Agedcare-sharedUITests/Agedcare_sharedUITests/testHeroPageShowsPanelRouter \
             -only-testing:Agedcare-sharedUITests/Agedcare_sharedUITests/testResidentPanelCardVisible \

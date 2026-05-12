@@ -6,6 +6,7 @@ on:
       - main
       - master
   pull_request:
+  workflow_dispatch:
 
 jobs:
   unit-tests:
@@ -25,20 +26,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DESTINATION=$(xcodebuild -project Agedcare-shared.xcodeproj -scheme Agedcare-shared -showdestinations 2>/dev/null | grep -Eo "platform:iOS Simulator,.*name:[^}]*" | grep -m1 "iPhone")
-          if [ -z "${DESTINATION:-}" ]; then
+          DESTINATION_LINE=$(xcodebuild -project Agedcare-shared.xcodeproj -scheme Agedcare-shared -showdestinations 2>/dev/null | awk '/platform:iOS Simulator/ && /name:iPhone/ { line=$0 } END { print line }')
+          if [ -z "${DESTINATION_LINE:-}" ]; then
             echo "No iPhone simulator destination was found." >&2
             exit 1
           fi
-          DEVICE_NAME=$(printf '%s\n' "$DESTINATION" | sed -E 's/.*name:([^,]+).*/\1/')
-          echo "destination=platform=iOS Simulator,name=${DEVICE_NAME},OS=latest" >> "$GITHUB_OUTPUT"
+          SIMULATOR_ID=$(printf '%s\n' "$DESTINATION_LINE" | sed -E 's/.*id:([^,]+), OS:.*/\1/')
+          SIMULATOR_NAME=$(printf '%s\n' "$DESTINATION_LINE" | sed -E 's/.*name:([^}]*) }.*/\1/')
+          if [ -z "${SIMULATOR_ID:-}" ] || [ "$SIMULATOR_ID" = "$DESTINATION_LINE" ]; then
+            echo "Unable to resolve simulator UDID from: $DESTINATION_LINE" >&2
+            exit 1
+          fi
+          echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
+          echo "name=$SIMULATOR_NAME" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$SIMULATOR_ID" || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
 
       - name: Run native iOS tests
         run: |
           xcodebuild \
             -project Agedcare-shared.xcodeproj \
             -scheme Agedcare-shared \
-            -destination "${{ steps.simulator.outputs.destination }}" \
+            -destination "id=${{ steps.simulator.outputs.id }}" \
+            -destination-timeout 180 \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-simulator-destinations 1 \
             -only-testing:Agedcare-sharedTests \
