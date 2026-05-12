@@ -25,6 +25,9 @@ final class MonitoringCoordinator: ObservableObject {
   private var healthTask: Task<Void, Never>?
   private var vitalEventTask: Task<Void, Never>?
   private var incidentResetTask: Task<Void, Never>?
+  private var weatherSnapshotCancellable: AnyCancellable?
+  private var lastWeatherSyncSignature: String?
+  private var lastWeatherSyncDate: Date?
 
   init(fallService: FallService, facilityId: UUID, residentId: UUID, alertsRepository: AlertsRepositoryProtocol, residentsRepository: ResidentsRepositoryProtocol) {
     self.fallService = fallService
@@ -34,6 +37,7 @@ final class MonitoringCoordinator: ObservableObject {
     self.residentsRepository = residentsRepository
     self.fallService.delegate = self
     setupVisionFallDetection()
+    setupWeatherLocationSync()
   }
 
   func startMonitoring() {
@@ -173,6 +177,46 @@ final class MonitoringCoordinator: ObservableObject {
       )
     } catch {
       print("[MonitoringCoordinator] Failed to record vital: \(error)")
+    }
+  }
+
+  private func setupWeatherLocationSync() {
+    weatherSnapshotCancellable = LocationWeatherService.shared.$snapshot
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] snapshot in
+        guard let self else { return }
+        Task { await self.recordWeatherSnapshotIfNeeded(snapshot) }
+      }
+  }
+
+  private func recordWeatherSnapshotIfNeeded(_ snapshot: WeatherSnapshot) async {
+    guard monitoringEnabled else { return }
+    guard let timestamp = snapshot.lastUpdated else { return }
+
+    let metrics = snapshot.backendMetrics()
+    guard !metrics.isEmpty else { return }
+
+    let signature = snapshot.backendSyncSignature()
+    if lastWeatherSyncSignature == signature,
+       let lastWeatherSyncDate,
+       timestamp.timeIntervalSince(lastWeatherSyncDate) < 600 {
+      return
+    }
+
+    do {
+      for metric in metrics {
+        try await residentsRepository.recordVitalEvent(
+          facilityId: facilityId,
+          residentId: residentId,
+          metric: metric.metric,
+          value: metric.value,
+          timestamp: timestamp
+        )
+      }
+      lastWeatherSyncSignature = signature
+      lastWeatherSyncDate = timestamp
+    } catch {
+      print("[MonitoringCoordinator] Failed to record weather/location metrics: \(error)")
     }
   }
 

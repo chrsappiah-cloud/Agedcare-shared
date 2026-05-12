@@ -98,6 +98,43 @@ struct WeatherSnapshot {
         return "Estimated from local weather"
     }
 
+    func backendMetrics() -> [(metric: String, value: Double)] {
+        var metrics: [(metric: String, value: Double)] = []
+
+        if let outdoorTemperature {
+            metrics.append(("outdoor_temperature", outdoorTemperature))
+        }
+        if let roomTemperature {
+            metrics.append(("room_temperature", roomTemperature))
+        }
+        if let humidity {
+            metrics.append(("humidity_percent", humidity * 100))
+        }
+        if let currentSpeedMetersPerSecond, currentSpeedMetersPerSecond >= 0 {
+            metrics.append(("movement_speed_mps", currentSpeedMetersPerSecond))
+        }
+        if let headingDegrees, headingDegrees >= 0 {
+            metrics.append(("heading_degrees", headingDegrees))
+        }
+        if totalDistanceMeters > 0 {
+            metrics.append(("distance_meters", totalDistanceMeters))
+        }
+        if let coordinate {
+            metrics.append(("latitude", coordinate.latitude))
+            metrics.append(("longitude", coordinate.longitude))
+        }
+
+        return metrics
+    }
+
+    func backendSyncSignature() -> String {
+        backendMetrics()
+            .map { metric, value in
+                "\(metric)=\(String(format: "%.5f", value))"
+            }
+            .joined(separator: "|")
+    }
+
     private func formatted(_ celsius: Double, unit: UnitTemperature) -> String {
         let measurement = Measurement(value: celsius, unit: UnitTemperature.celsius).converted(to: unit)
         return String(format: "%.1f °%@", measurement.value, unit == .celsius ? "C" : "F")
@@ -118,6 +155,8 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
     private var lastLocation: CLLocation?
     private var lastWeatherFetchLocation: CLLocation?
     private var lastWeatherFetchDate: Date?
+    private var lastGeocodedLocation: CLLocation?
+    private var lastGeocodeDate: Date?
     private var cancellables: Set<AnyCancellable> = []
 
     override init() {
@@ -209,6 +248,7 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         snapshot.lastUpdated = Date()
 
         appendCoordinateIfNeeded(location.coordinate)
+        await reverseGeocodeIfNeeded(for: location)
         lastLocation = location
 
         if shouldRefreshWeather(for: location) {
@@ -237,6 +277,67 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
             return true
         }
         return location.distance(from: lastWeatherFetchLocation) >= 100
+    }
+
+    private func reverseGeocodeIfNeeded(for location: CLLocation) async {
+        guard shouldRefreshGeocode(for: location) else { return }
+        do {
+            let mapItems = try await reverseGeocode(location)
+            if let mapItem = mapItems.first {
+                snapshot.locationName = formattedLocationName(from: mapItem)
+            } else {
+                snapshot.locationName = snapshot.formattedCoordinates()
+            }
+            lastGeocodedLocation = location
+            lastGeocodeDate = Date()
+        } catch {
+            if snapshot.locationName.isEmpty {
+                snapshot.locationName = snapshot.formattedCoordinates()
+            }
+        }
+    }
+
+    private func shouldRefreshGeocode(for location: CLLocation) -> Bool {
+        guard let lastGeocodeDate, let lastGeocodedLocation else { return true }
+        if snapshot.locationName.isEmpty {
+            return true
+        }
+        if Date().timeIntervalSince(lastGeocodeDate) > 900 {
+            return true
+        }
+        return location.distance(from: lastGeocodedLocation) >= 75
+    }
+
+    private func reverseGeocode(_ location: CLLocation) async throws -> [MKMapItem] {
+        guard let request = MKReverseGeocodingRequest(location: location) else {
+            return []
+        }
+        return try await request.mapItems
+    }
+
+    private func formattedLocationName(from mapItem: MKMapItem) -> String {
+        let address = mapItem.addressRepresentations
+        let candidates: [String?] = [
+            mapItem.name,
+            address?.cityName,
+            address?.cityWithContext,
+            address?.regionName,
+        ]
+        var parts = [String]()
+        for candidate in candidates {
+            guard let value = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { continue }
+            parts.append(value)
+        }
+
+        if parts.isEmpty {
+            return snapshot.formattedCoordinates()
+        }
+
+        var uniqueParts = [String]()
+        for part in parts where !uniqueParts.contains(part) {
+            uniqueParts.append(part)
+        }
+        return uniqueParts.prefix(2).joined(separator: ", ")
     }
 
     private func fetchWeather(for location: CLLocation) async {

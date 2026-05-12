@@ -689,6 +689,28 @@ struct BackendHealthProbeTests {
         #expect(incident.movementSummary.contains("Moving"))
     }
 
+    @Test func weatherSnapshotBackendMetricsIncludeLocationWeatherAndMovement() {
+        var snap = WeatherSnapshot()
+        snap.outdoorTemperature = 18.5
+        snap.actualRoomTemperature = 22.3
+        snap.humidity = 0.64
+        snap.currentSpeedMetersPerSecond = 1.4
+        snap.headingDegrees = 180
+        snap.totalDistanceMeters = 42
+        snap.coordinate = .init(latitude: -37.8136, longitude: 144.9631)
+
+        let metrics = Dictionary(uniqueKeysWithValues: snap.backendMetrics().map { ($0.metric, $0.value) })
+
+        #expect(metrics["outdoor_temperature"] == 18.5)
+        #expect(metrics["room_temperature"] == 22.3)
+        #expect(metrics["humidity_percent"] == 64)
+        #expect(metrics["movement_speed_mps"] == 1.4)
+        #expect(metrics["heading_degrees"] == 180)
+        #expect(metrics["distance_meters"] == 42)
+        #expect(metrics["latitude"] == -37.8136)
+        #expect(metrics["longitude"] == 144.9631)
+    }
+
     @Test func incidentRecordingDefaultsToLocalStatusWhenLegacyDataHasNoSyncState() {
         let recording = IncidentRecording(
             id: UUID(),
