@@ -93,7 +93,9 @@ jobs:
             MV=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Agedcare-shared/Info.plist 2>/dev/null \
               || grep -m1 "MARKETING_VERSION" "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/' | tr -d ' "')
           fi
-          BN="$(( 100 + ${{ github.run_number }} ))"
+          CURRENT_BUILD=$(grep -m1 "CURRENT_PROJECT_VERSION" "$PROJECT/project.pbxproj" | sed -E 's/.*= ([0-9]+);/\1/')
+          CURRENT_BUILD="${CURRENT_BUILD:-1}"
+          BN="$(( CURRENT_BUILD + ${{ github.run_number }} ))"
           echo "marketing=$MV" >> "$GITHUB_OUTPUT"
           echo "build=$BN" >> "$GITHUB_OUTPUT"
           echo "Marketing version: $MV"
