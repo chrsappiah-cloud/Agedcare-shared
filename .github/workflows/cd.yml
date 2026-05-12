@@ -157,24 +157,29 @@ jobs:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
         run: |
           set -euo pipefail
-          EXTRA_ARGS=()
           if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ]; then
-            EXTRA_ARGS+=(
-              -allowProvisioningUpdates
-              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
-              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
-              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
-            )
+            xcodebuild archive \
+              -project "$PROJECT" \
+              -scheme "$SCHEME" \
+              -configuration "$CONFIGURATION" \
+              -destination "generic/platform=iOS" \
+              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
+              DEVELOPMENT_TEAM="$TEAM_ID" \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+              | tee "$RUNNER_TEMP/archive.log"
+          else
+            xcodebuild archive \
+              -project "$PROJECT" \
+              -scheme "$SCHEME" \
+              -configuration "$CONFIGURATION" \
+              -destination "generic/platform=iOS" \
+              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
+              DEVELOPMENT_TEAM="$TEAM_ID" \
+              | tee "$RUNNER_TEMP/archive.log"
           fi
-          xcodebuild archive \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -configuration "$CONFIGURATION" \
-            -destination "generic/platform=iOS" \
-            -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            "${EXTRA_ARGS[@]}" \
-            | tee "$RUNNER_TEMP/archive.log"
           test -d "$RUNNER_TEMP/$SCHEME.xcarchive"
 
       - name: Export IPA
@@ -182,20 +187,21 @@ jobs:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
         run: |
           set -euo pipefail
-          EXTRA_ARGS=()
           if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ]; then
-            EXTRA_ARGS+=(
-              -allowProvisioningUpdates
-              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
-              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
+            xcodebuild -exportArchive \
+              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
+              -exportOptionsPlist ExportOptions.plist \
+              -exportPath "$RUNNER_TEMP/export" \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
               -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
-            )
+          else
+            xcodebuild -exportArchive \
+              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
+              -exportOptionsPlist ExportOptions.plist \
+              -exportPath "$RUNNER_TEMP/export"
           fi
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$RUNNER_TEMP/export" \
-            "${EXTRA_ARGS[@]}"
           ls -la "$RUNNER_TEMP/export"
 
       - name: Validate IPA against App Store Connect
