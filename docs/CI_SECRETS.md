@@ -1,8 +1,10 @@
 # CI/CD Secrets — TestFlight Upload Pipeline
 
-The `.github/workflows/cd.yml` pipeline uses **App Store Connect cloud signing**
-and requires **3 repository secrets** to archive and upload Agedcare-shared to
-TestFlight on every `vX.Y.Z` tag push.
+The `.github/workflows/cd.yml` pipeline uses **App Store Connect signing** and
+requires **3 repository secrets** to archive and upload Agedcare-shared to
+TestFlight on every `vX.Y.Z` tag push. In environments where App Store Connect
+cannot create a managed distribution profile automatically, you should also set
+the optional fallback profile secret below.
 
 Configure each one at:
 **GitHub → repo → Settings → Secrets and variables → Actions → New repository secret**
@@ -12,6 +14,7 @@ Configure each one at:
 | `ASC_KEY_ID` | App Store Connect API Key ID | App Store Connect → Users and Access → Keys (e.g. `ABC1234567`) |
 | `ASC_ISSUER_ID` | App Store Connect issuer UUID | Same page, top of the Keys tab |
 | `ASC_PRIVATE_KEY_BASE64` | The `.p8` API key file, base64 | `base64 -i AuthKey_ABC1234567.p8 \| pbcopy` |
+| `BUILD_PROVISION_PROFILE_BASE64` *(optional fallback)* | App Store provisioning profile, base64 | `base64 -i ~/Downloads/Agedcare-shared.mobileprovision \| pbcopy` |
 
 ## One-time setup walkthrough
 
@@ -26,11 +29,14 @@ Configure each one at:
 
 ## Verifying
 
-Once all 3 are set, re-trigger the workflow without re-tagging:
+Once the 3 required secrets are set, re-trigger the workflow without re-tagging:
 **Actions → CD — TestFlight (Production) → Run workflow** (uses `workflow_dispatch`).
 
 The pre-flight step now prints `✅ All required App Store Connect secrets are present`
-or fails fast with a list of which ones are still missing.
+or fails fast with a list of which ones are still missing. If cloud-managed
+profile creation is not permitted for the API key, also add
+`BUILD_PROVISION_PROFILE_BASE64` so the export step can use an existing
+App Store profile directly.
 
 ## Rotating
 
