@@ -165,33 +165,18 @@ jobs:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
         run: |
           set -euo pipefail
-          if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ] || [ "${{ steps.provisioning.outputs.installed }}" != "true" ]; then
-            xcodebuild archive \
-              -project "$PROJECT" \
-              -scheme "$SCHEME" \
-              -configuration "$CONFIGURATION" \
-              -destination "generic/platform=iOS" \
-              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-              DEVELOPMENT_TEAM="$TEAM_ID" \
-              -allowProvisioningUpdates \
-              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
-              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-              | tee "$RUNNER_TEMP/archive.log"
-          else
-            xcodebuild archive \
-              -project "$PROJECT" \
-              -scheme "$SCHEME" \
-              -configuration "$CONFIGURATION" \
-              -destination "generic/platform=iOS" \
-              -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-              DEVELOPMENT_TEAM="$TEAM_ID" \
-              CODE_SIGN_STYLE=Manual \
-              CODE_SIGN_IDENTITY="Apple Distribution" \
-              PROVISIONING_PROFILE="${{ steps.provisioning.outputs.uuid }}" \
-              PROVISIONING_PROFILE_SPECIFIER="${{ steps.provisioning.outputs.name }}" \
-              | tee "$RUNNER_TEMP/archive.log"
-          fi
+          xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            | tee "$RUNNER_TEMP/archive.log"
           test -d "$RUNNER_TEMP/$SCHEME.xcarchive"
 
       - name: Export IPA
