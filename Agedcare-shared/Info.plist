@@ -14,7 +14,6 @@
 		<string>remote-notification</string>
 		<string>audio</string>
 		<string>processing</string>
-		<string>video</string>
 	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>AgedCare Monitor reads health data to track resident vitals such as heart rate, blood oxygen, and step count for anomaly detection.</string>
