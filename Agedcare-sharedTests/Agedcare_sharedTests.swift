@@ -417,13 +417,15 @@ struct RevenueValidationTests {
 @Suite("CloudKit Live Probes")
 struct CloudKitLiveProbeTests {
 
-    @Test func defaultContainerResolves() {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func defaultContainerResolves() {
         let container = CKContainer.default()
         #expect(!container.containerIdentifier.isEmptyOrNil,
                 "CKContainer.default() must resolve a container identifier from the app entitlements")
     }
 
-    @Test func privateAndPublicDatabasesAccessible() {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func privateAndPublicDatabasesAccessible() {
         let container = CKContainer.default()
         let priv = container.privateCloudDatabase
         let pub  = container.publicCloudDatabase
@@ -431,7 +433,8 @@ struct CloudKitLiveProbeTests {
         #expect(pub.databaseScope  == .public)
     }
 
-    @Test func accountStatusIsQueryable() async throws {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func accountStatusIsQueryable() async throws {
         let container = CKContainer.default()
         let status = try await container.accountStatus()
         let valid: [CKAccountStatus] = [.available, .noAccount, .restricted, .couldNotDetermine, .temporarilyUnavailable]
@@ -439,12 +442,15 @@ struct CloudKitLiveProbeTests {
                 "accountStatus() must return a known CKAccountStatus value (got rawValue \(status.rawValue))")
     }
 
-    @Test func cloudKitServiceSingletonExposesDatabases() {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func cloudKitServiceSingletonExposesDatabases() {
         let svc = CloudKitService.shared
         #expect(svc.privateDB.databaseScope == .private)
         #expect(svc.publicDB.databaseScope  == .public)
     }
 }
+
+private let liveCloudKitProbeEnabled = ProcessInfo.processInfo.environment["RUN_LIVE_CLOUDKIT_TESTS"] == "1"
 
 private extension Optional where Wrapped == String {
     var isEmptyOrNil: Bool { (self ?? "").isEmpty }

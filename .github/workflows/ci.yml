@@ -57,6 +57,7 @@ jobs:
             -project Agedcare-shared.xcodeproj \
             -scheme Agedcare-shared \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -parallel-testing-enabled NO \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
             -only-testing:Agedcare-sharedTests \
