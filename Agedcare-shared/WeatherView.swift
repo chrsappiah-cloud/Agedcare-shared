@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 // MARK: - Weather card shown on ResidentHomeView
 struct WeatherCardView: View {
@@ -15,7 +16,10 @@ struct WeatherCardView: View {
                     .font(.caption)
                     .foregroundStyle(AppTheme.danger)
             } else {
+                residentMap
                 weatherGrid
+                movementGrid
+                roomTemperatureFootnote
             }
         }
         .padding(16)
@@ -23,6 +27,7 @@ struct WeatherCardView: View {
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
         .onAppear { service.requestPermissionAndStart() }
+        .onDisappear { service.stop() }
     }
 
     private var headerRow: some View {
@@ -60,7 +65,7 @@ struct WeatherCardView: View {
             )
             WeatherTileView(
                 icon: "thermometer.medium",
-                label: "Room Temp (est.)",
+                label: service.snapshot.hasActualRoomTemperature ? "Room Temp" : "Room Temp (est.)",
                 value: service.snapshot.formattedRoomTemp(),
                 color: AppTheme.emeraldGreen
             )
@@ -78,6 +83,71 @@ struct WeatherCardView: View {
                 color: .purple
             )
         }
+    }
+
+    private var movementGrid: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            WeatherTileView(
+                icon: "location.fill",
+                label: "Location",
+                value: service.snapshot.locationName.isEmpty ? "--" : service.snapshot.locationName,
+                color: .red
+            )
+            WeatherTileView(
+                icon: "figure.walk",
+                label: "Movement",
+                value: service.snapshot.movementStateDescription(),
+                color: .mint
+            )
+            WeatherTileView(
+                icon: "speedometer",
+                label: "Speed",
+                value: service.snapshot.formattedSpeed(),
+                color: .indigo
+            )
+            WeatherTileView(
+                icon: "point.topleft.down.curvedto.point.bottomright.up",
+                label: "Distance",
+                value: service.snapshot.formattedDistance(),
+                color: .pink
+            )
+        }
+        .padding(.top, 12)
+    }
+
+    @ViewBuilder
+    private var residentMap: some View {
+        if let region = service.snapshot.mapRegion,
+           let coordinate = service.snapshot.coordinate {
+            Map(position: .constant(.region(region))) {
+                Marker("Resident", coordinate: coordinate)
+            }
+            .frame(height: 160)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(alignment: .bottomLeading) {
+                Text(service.snapshot.formattedCoordinates())
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.5), in: Capsule())
+                    .padding(10)
+            }
+        }
+    }
+
+    private var roomTemperatureFootnote: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(service.snapshot.roomTemperatureSourceDescription())
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+            if !service.snapshot.hasActualRoomTemperature {
+                Text("Add a HomeKit temperature sensor or thermostat to show actual room temperature.")
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .padding(.top, 8)
     }
 }
 

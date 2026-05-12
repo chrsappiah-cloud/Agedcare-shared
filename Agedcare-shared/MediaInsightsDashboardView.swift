@@ -5,6 +5,7 @@ struct MediaInsightsDashboardView: View {
   @StateObject private var ai = AIMonitoringService.shared
   @State private var selectedTab: InsightsTab = .media
   @State private var showAudioMonitor = false
+  private let refreshIntervalNanoseconds: UInt64 = 15_000_000_000
 
   enum InsightsTab: String, CaseIterable {
     case media = "AI Insights"
@@ -23,6 +24,13 @@ struct MediaInsightsDashboardView: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
+        if let error = ai.errorMessage {
+          Label(error, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption)
+            .foregroundColor(.orange)
+            .padding(.horizontal)
+            .padding(.top, 8)
+        }
         pickerStrip
         tabContent
       }
@@ -41,7 +49,7 @@ struct MediaInsightsDashboardView: View {
           .accessibilityLabel("Start audio monitoring session")
         }
       }
-      .task { await refreshAll() }
+      .task { await liveRefreshLoop() }
       .onAppear {
         ai.startPolling(facilityId: staff.facilityId.uuidString)
       }
@@ -139,6 +147,13 @@ struct MediaInsightsDashboardView: View {
     async let events: () = ai.fetchRecentEvents(facilityId: staff.facilityId.uuidString)
     async let sessions: () = ai.fetchSessions(facilityId: staff.facilityId.uuidString)
     _ = await (insights, events, sessions)
+  }
+
+  private func liveRefreshLoop() async {
+    while !Task.isCancelled {
+      await refreshAll()
+      try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
+    }
   }
 }
 

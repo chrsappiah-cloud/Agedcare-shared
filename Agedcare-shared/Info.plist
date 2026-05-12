@@ -9,6 +9,14 @@
 		<string>wcs.Agedcare-shared.healthkit-refresh</string>
 		<string>wcs.Agedcare-shared.alert-sync</string>
 	</array>
+	<key>AWSAPIBaseURL</key>
+	<string></string>
+	<key>BackendBaseURL</key>
+	<string>https://agedcare-api.chrsappiah.cloud</string>
+	<key>BackendProvider</key>
+	<string>primary</string>
+	<key>CloudflareAPIBaseURL</key>
+	<string></string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
@@ -19,6 +27,8 @@
 	<string>AgedCare Monitor reads health data to track resident vitals such as heart rate, blood oxygen, and step count for anomaly detection.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>AgedCare Monitor writes health data to record monitoring measurements and vitals collected during care sessions.</string>
+	<key>NSHomeKitUsageDescription</key>
+	<string>AgedCare Monitor uses HomeKit temperature sensors and thermostats to show actual resident room temperatures when compatible accessories are configured.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>AgedCare Monitor uses the camera for AI-powered fall detection, room monitoring, and capturing photo evidence for incident reports.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -39,6 +49,8 @@
 	<array>
 		<string>_agedcare._tcp</string>
 	</array>
+	<key>SupabaseAnonKey</key>
+	<string></string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>

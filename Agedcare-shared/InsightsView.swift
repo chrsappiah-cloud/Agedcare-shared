@@ -5,6 +5,7 @@ struct InsightsView: View {
   @EnvironmentObject var container: DependencyContainer
   @State private var stats: FacilityStatsDTO?
   @State private var loadError: String?
+  private let refreshIntervalNanoseconds: UInt64 = 15_000_000_000
 
   var body: some View {
     NavigationStack {
@@ -24,13 +25,21 @@ struct InsightsView: View {
       }
       .navigationTitle("Insights")
       .refreshable { await loadStats() }
-      .task { await loadStats() }
+      .task { await liveRefreshLoop() }
+    }
+  }
+
+  private func liveRefreshLoop() async {
+    while !Task.isCancelled {
+      await loadStats()
+      try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
     }
   }
 
   private func loadStats() async {
     do {
       stats = try await container.facilityRepository.getStats(facilityId: staff.facilityId)
+      loadError = nil
     } catch {
       loadError = error.localizedDescription
     }

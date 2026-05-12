@@ -7,6 +7,7 @@ struct ResidentSetupView: View {
   @State private var isLoading = true
   @State private var errorMessage: String?
   @State private var facilityId: UUID?
+  private let requestFactory = BackendRequestFactory()
 
   var body: some View {
     NavigationStack {
@@ -76,8 +77,7 @@ struct ResidentSetupView: View {
   }
 
   private func findFacilityId() async throws -> UUID? {
-    var req = URLRequest(url: AppHost.baseURL.appendingPathComponent("/facility"))
-    req.httpMethod = "GET"
+    let req = try requestFactory.makeRequest(path: "facility", method: "GET")
     let (data, resp) = try await URLSession.shared.data(for: req)
     guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else { return nil }
     let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]

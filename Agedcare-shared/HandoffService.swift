@@ -36,6 +36,7 @@ final class HandoffService: NSObject, ObservableObject {
   @Published var activeTransferToken: String?
   @Published var pendingRequests: [HandoffRequest] = []
   @Published var routingResidentId: UUID?
+  @Published var lastErrorMessage: String?
 
   struct HandoffRequest: Identifiable, Decodable {
     let id: Int
@@ -46,7 +47,7 @@ final class HandoffService: NSObject, ObservableObject {
   }
 
   private var handoffCallback: ((HandoffAction) -> Void)?
-  private let baseURL = AppHost.baseURL
+  private let requestFactory = BackendRequestFactory()
   private var pollTask: Task<Void, Never>?
 
   func startListening(callback: @escaping (HandoffAction) -> Void) {
@@ -87,26 +88,41 @@ final class HandoffService: NSObject, ObservableObject {
     pendingHandoff = action
     postLocalNotification(for: action)
     handoffCallback?(action)
-    let _ = try? await callRPC("create_handoff_request", body: [
-      "p_facility_id": facilityId,
-      "p_resident_id": residentId,
-      "p_notes": "\(residentName) requested staff assistance",
-    ])
+    do {
+      _ = try await callRPC("create_handoff_request", body: [
+        "p_facility_id": facilityId,
+        "p_resident_id": residentId,
+        "p_notes": "\(residentName) requested staff assistance",
+      ])
+      lastErrorMessage = nil
+    } catch {
+      lastErrorMessage = error.localizedDescription
+    }
   }
 
   func staffTakeover(staffId: String, staffName: String, facilityId: String, session: SessionViewModel) async {
     let action = HandoffAction.staffTakeover(staffId: staffId, staffName: staffName, facilityId: facilityId)
     pendingHandoff = nil
     postLocalNotification(for: action)
-    let _ = try? await callRPC("resolve_handoff_request", body: ["p_alert_id": activeTransferToken ?? ""])
+    do {
+      _ = try await callRPC("resolve_handoff_request", body: ["p_alert_id": activeTransferToken ?? ""])
+      lastErrorMessage = nil
+    } catch {
+      lastErrorMessage = error.localizedDescription
+    }
     clearHandoff()
     handoffCallback?(action)
   }
 
   func fetchPendingRequests(facilityId: String) async {
-    guard let data = try? await callRPC("get_pending_handoffs", body: ["p_facility_id": facilityId]) else { return }
-    if let requests = try? JSONDecoder().decode([HandoffRequest].self, from: data) {
-      pendingRequests = requests
+    do {
+      let data = try await callRPC("get_pending_handoffs", body: ["p_facility_id": facilityId])
+      if let requests = try? JSONDecoder().decode([HandoffRequest].self, from: data) {
+        pendingRequests = requests
+      }
+      lastErrorMessage = nil
+    } catch {
+      lastErrorMessage = error.localizedDescription
     }
   }
 
@@ -120,14 +136,13 @@ final class HandoffService: NSObject, ObservableObject {
   }
 
   @discardableResult
-  private func callRPC(_ name: String, body: [String: Any]) async throws -> Data? {
-    let url = baseURL.appendingPathComponent("/rest/v1/rpc/\(name)")
-    var req = URLRequest(url: url)
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+  private func callRPC(_ name: String, body: [String: Any]) async throws -> Data {
+    var req = try requestFactory.makeRPCRequest(name)
     req.httpBody = try JSONSerialization.data(withJSONObject: body)
     let (data, resp) = try await URLSession.shared.data(for: req)
-    guard let http = resp as? HTTPURLResponse, http.statusCode < 300 else { return nil }
+    guard let http = resp as? HTTPURLResponse, http.statusCode < 300 else {
+      throw SupabaseError.httpError((resp as? HTTPURLResponse)?.statusCode ?? -1, data)
+    }
     return data
   }
 
@@ -185,8 +200,21 @@ nonisolated extension HandoffService: UNUserNotificationCenterDelegate {
       completionHandler()
       return
     }
+    let action = userInfo["action"] as? String
+    let facilityId = userInfo["facilityId"] as? String
+    let residentId = userInfo["residentId"] as? String
+    let residentName = userInfo["residentName"] as? String
+    let staffId = userInfo["staffId"] as? String
+    let staffName = userInfo["staffName"] as? String
     Task { @MainActor in
-      handleHandoffNotification(userInfo)
+      handleHandoffNotification(
+        action: action,
+        facilityId: facilityId,
+        residentId: residentId,
+        residentName: residentName,
+        staffId: staffId,
+        staffName: staffName
+      )
       completionHandler()
     }
   }
@@ -201,22 +229,31 @@ nonisolated extension HandoffService: UNUserNotificationCenterDelegate {
   }
 
   @MainActor
-  private func handleHandoffNotification(_ userInfo: [AnyHashable: Any]) {
-    guard let action = userInfo["action"] as? String else { return }
-    let fid = userInfo["facilityId"] as? String
-    let rid = userInfo["residentId"] as? String
+  private func handleHandoffNotification(
+    action: String?,
+    facilityId: String?,
+    residentId: String?,
+    residentName: String?,
+    staffId: String?,
+    staffName: String?
+  ) {
+    guard let action else { return }
     switch action {
     case "requestStaff":
-      if let fid, let rid {
-        pendingHandoff = .requestStaff(facilityId: fid, residentId: rid, residentName: userInfo["residentName"] as? String ?? "Resident")
+      if let facilityId, let residentId {
+        pendingHandoff = .requestStaff(
+          facilityId: facilityId,
+          residentId: residentId,
+          residentName: residentName ?? "Resident"
+        )
       }
     case "staffTakeover":
-      if let sid = userInfo["staffId"] as? String, let sname = userInfo["staffName"] as? String, let fid {
-        pendingHandoff = .staffTakeover(staffId: sid, staffName: sname, facilityId: fid)
+      if let staffId, let staffName, let facilityId {
+        pendingHandoff = .staffTakeover(staffId: staffId, staffName: staffName, facilityId: facilityId)
       }
     case "sosAlert":
-      if let fid, let rid {
-        pendingHandoff = .sosAlert(facilityId: fid, residentId: rid)
+      if let facilityId, let residentId {
+        pendingHandoff = .sosAlert(facilityId: facilityId, residentId: residentId)
       }
     default:
       break

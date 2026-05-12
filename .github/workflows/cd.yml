@@ -46,6 +46,8 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
         run: |
           set -e
           missing=()
@@ -72,6 +74,11 @@ jobs:
             echo "✅ App Store provisioning profile secret is present"
           else
             echo "ℹ️ No BUILD_PROVISION_PROFILE_BASE64 secret set; export will rely on cloud-managed profiles"
+          fi
+          if [ -n "${BUILD_CERTIFICATE_BASE64:-}" ] && [ -n "${BUILD_CERTIFICATE_PASSWORD:-}" ]; then
+            echo "✅ Distribution certificate secrets are present"
+          else
+            echo "ℹ️ No BUILD_CERTIFICATE_BASE64 / BUILD_CERTIFICATE_PASSWORD secret set; archive will rely on cloud signing"
           fi
 
       - name: Resolve marketing version + build number
@@ -124,31 +131,71 @@ jobs:
           cp "$RUNNER_TEMP/Agedcare-shared.mobileprovision" \
             ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      - name: Archive (Release)
+      - name: Install distribution certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
         run: |
+          set -euo pipefail
+          if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ] || [ -z "${BUILD_CERTIFICATE_PASSWORD:-}" ]; then
+            echo "No distribution certificate secrets configured; skipping certificate install."
+            exit 0
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/build_certificate.p12"
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$BUILD_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$BUILD_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$BUILD_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$BUILD_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Archive (Release)
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=()
+          if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ]; then
+            EXTRA_ARGS+=(
+              -allowProvisioningUpdates
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
+              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            )
+          fi
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-            -allowProvisioningUpdates \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-            | xcpretty || exit ${PIPESTATUS[0]}
+            "${EXTRA_ARGS[@]}" \
+            | tee "$RUNNER_TEMP/archive.log"
+          test -d "$RUNNER_TEMP/$SCHEME.xcarchive"
 
       - name: Export IPA
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
         run: |
+          set -euo pipefail
+          EXTRA_ARGS=()
+          if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ]; then
+            EXTRA_ARGS+=(
+              -allowProvisioningUpdates
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
+              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            )
+          fi
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            "${EXTRA_ARGS[@]}"
           ls -la "$RUNNER_TEMP/export"
 
       - name: Validate IPA against App Store Connect
@@ -200,7 +247,10 @@ jobs:
       - name: Clean up keychain
         if: always()
         run: |
-          rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8 "$RUNNER_TEMP"/AuthKey_*.p8 || true
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8 "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP"/build_certificate.p12 || true
+          if [ -f "$RUNNER_TEMP/app-signing.keychain-db" ]; then
+            security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
+          fi
 
       - name: Job summary
         if: always()

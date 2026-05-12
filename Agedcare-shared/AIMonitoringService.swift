@@ -6,8 +6,9 @@ import UIKit
 final class AIMonitoringService: ObservableObject {
   static let shared = AIMonitoringService()
 
-  private let baseURL: URL
   private let session = URLSession.shared
+  private let requestFactory = BackendRequestFactory()
+  private let backupStore = ICloudBackupStore.shared
 
   @Published var recentInsights: [MediaAnalysisResult] = []
   @Published var activeSessions: [AudioMonitorSession] = []
@@ -18,7 +19,6 @@ final class AIMonitoringService: ObservableObject {
   private var pollTimer: Timer?
 
   init() {
-    self.baseURL = AppHost.baseURL
   }
 
   // MARK: - Media Analysis
@@ -43,20 +43,17 @@ final class AIMonitoringService: ObservableObject {
   }
 
   private func analyzeMedia(_ b64: String, filename: String, mediaType: String, facilityId: String, residentId: String? = nil, transcribedText: String? = nil) async -> MediaAnalysisResult? {
-    var req = URLRequest(url: baseURL.appendingPathComponent("/ai/analyze/media"))
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    var body: [String: Any] = [
-      "data_base64": b64,
-      "filename": filename,
-      "media_type": mediaType,
-      "facility_id": facilityId,
-    ]
-    if let rid = residentId { body["resident_id"] = rid }
-    if let tt = transcribedText { body["transcribed_text"] = tt }
-    req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
     do {
+      var req = try requestFactory.makeRequest(path: "ai/analyze/media", method: "POST")
+      var body: [String: Any] = [
+        "data_base64": b64,
+        "filename": filename,
+        "media_type": mediaType,
+        "facility_id": facilityId,
+      ]
+      if let rid = residentId { body["resident_id"] = rid }
+      if let tt = transcribedText { body["transcribed_text"] = tt }
+      req.httpBody = try JSONSerialization.data(withJSONObject: body)
       let (data, _) = try await session.data(for: req)
       let decoder = JSONDecoder()
       return try decoder.decode(MediaAnalysisResult.self, from: data)
@@ -71,18 +68,20 @@ final class AIMonitoringService: ObservableObject {
   func fetchInsights(facilityId: String, limit: Int = 20) async {
     isLoading = true
     errorMessage = nil
-    var req = URLRequest(url: baseURL.appendingPathComponent("/ai/insights"))
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    let body: [String: Any] = ["facility_id": facilityId, "limit": limit]
-    req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
     do {
+      var req = try requestFactory.makeRequest(path: "ai/insights", method: "POST")
+      let body: [String: Any] = ["facility_id": facilityId, "limit": limit]
+      req.httpBody = try JSONSerialization.data(withJSONObject: body)
       let (data, _) = try await session.data(for: req)
       let decoder = JSONDecoder()
       recentInsights = try decoder.decode([MediaAnalysisResult].self, from: data)
+      backupStore.saveInsights(recentInsights, facilityId: facilityId)
     } catch {
       errorMessage = error.localizedDescription
+      if let cached = backupStore.loadInsights(facilityId: facilityId) {
+        recentInsights = cached
+      }
     }
     isLoading = false
   }
@@ -90,15 +89,12 @@ final class AIMonitoringService: ObservableObject {
   // MARK: - Audio Monitoring Sessions
 
   func startMonitoring(facilityId: String, residentId: String? = nil, staffId: String? = nil) async -> String? {
-    var req = URLRequest(url: baseURL.appendingPathComponent("/ai/monitor/start"))
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    var body: [String: Any] = ["facility_id": facilityId]
-    if let rid = residentId { body["resident_id"] = rid }
-    if let sid = staffId { body["started_by"] = sid }
-    req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
     do {
+      var req = try requestFactory.makeRequest(path: "ai/monitor/start", method: "POST")
+      var body: [String: Any] = ["facility_id": facilityId]
+      if let rid = residentId { body["resident_id"] = rid }
+      if let sid = staffId { body["started_by"] = sid }
+      req.httpBody = try JSONSerialization.data(withJSONObject: body)
       let (data, _) = try await session.data(for: req)
       let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
       return json?["session_id"] as? String
@@ -109,50 +105,55 @@ final class AIMonitoringService: ObservableObject {
   }
 
   func stopMonitoring(sessionId: String) async {
-    guard let url = URL(string: "\(baseURL)/ai/monitor/\(sessionId)/stop") else { return }
-    var req = URLRequest(url: url)
-    req.httpMethod = "POST"
-    _ = try? await session.data(for: req)
-  }
-
-  func reportEvent(sessionId: String, event: AIEventReport) async {
-    guard let url = URL(string: "\(baseURL)/ai/monitor/\(sessionId)/event") else { return }
-    var req = URLRequest(url: url)
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    req.httpBody = try? JSONEncoder().encode(event)
-    _ = try? await session.data(for: req)
-  }
-
-  func fetchSessions(facilityId: String, limit: Int = 10) async {
-    var req = URLRequest(url: baseURL.appendingPathComponent("/ai/sessions"))
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    let body: [String: Any] = ["facility_id": facilityId, "limit": limit]
-    req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
     do {
-      let (data, _) = try await session.data(for: req)
-      let decoder = JSONDecoder()
-      activeSessions = try decoder.decode([AudioMonitorSession].self, from: data)
+      let req = try requestFactory.makeRequest(path: "ai/monitor/\(sessionId)/stop", method: "POST")
+      _ = try await session.data(for: req)
     } catch {
       errorMessage = error.localizedDescription
     }
   }
 
-  func fetchRecentEvents(facilityId: String, hours: Int = 24) async {
-    var req = URLRequest(url: baseURL.appendingPathComponent("/ai/events/recent"))
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    let body: [String: Any] = ["facility_id": facilityId, "hours": hours]
-    req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
+  func reportEvent(sessionId: String, event: AIEventReport) async {
     do {
+      var req = try requestFactory.makeRequest(path: "ai/monitor/\(sessionId)/event", method: "POST")
+      req.httpBody = try JSONEncoder().encode(event)
+      _ = try await session.data(for: req)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  func fetchSessions(facilityId: String, limit: Int = 10) async {
+    do {
+      var req = try requestFactory.makeRequest(path: "ai/sessions", method: "POST")
+      let body: [String: Any] = ["facility_id": facilityId, "limit": limit]
+      req.httpBody = try JSONSerialization.data(withJSONObject: body)
+      let (data, _) = try await session.data(for: req)
+      let decoder = JSONDecoder()
+      activeSessions = try decoder.decode([AudioMonitorSession].self, from: data)
+      backupStore.saveSessions(activeSessions, facilityId: facilityId)
+    } catch {
+      errorMessage = error.localizedDescription
+      if let cached = backupStore.loadSessions(facilityId: facilityId) {
+        activeSessions = cached
+      }
+    }
+  }
+
+  func fetchRecentEvents(facilityId: String, hours: Int = 24) async {
+    do {
+      var req = try requestFactory.makeRequest(path: "ai/events/recent", method: "POST")
+      let body: [String: Any] = ["facility_id": facilityId, "hours": hours]
+      req.httpBody = try JSONSerialization.data(withJSONObject: body)
       let (data, _) = try await session.data(for: req)
       let decoder = JSONDecoder()
       recentEvents = try decoder.decode([AudioMonitorEvent].self, from: data)
+      backupStore.saveEvents(recentEvents, facilityId: facilityId)
     } catch {
       errorMessage = error.localizedDescription
+      if let cached = backupStore.loadEvents(facilityId: facilityId) {
+        recentEvents = cached
+      }
     }
   }
 

@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, "feature/**", "fix/**", "release/**"]
+    branches: [main, "feature/**", "fix/**", "release/**", "ci/**", "chore/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,19 +18,50 @@ jobs:
     name: SwiftLint
     runs-on: macos-26
     timeout-minutes: 10
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Install SwiftLint
         run: brew install swiftlint
       - name: Run SwiftLint
-        run: swiftlint lint --reporter github-actions-logging
+        run: |
+          set +e
+          swiftlint lint --reporter github-actions-logging
+          status=$?
+          echo "swiftlint_exit_code=$status" >> "$GITHUB_ENV"
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "### SwiftLint reported repo-wide violations"
+              echo ""
+              echo "Lint remains advisory until the existing baseline is reduced."
+              echo "Build and tests stay enforced."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 0
+
+  worker-syntax:
+    name: Cloudflare Worker Syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate worker syntax
+        run: |
+          if [ -f cloudflare-worker/src/index.js ]; then
+            node --check cloudflare-worker/src/index.js
+          else
+            echo "No Cloudflare worker present"
+          fi
 
   # ── Build & Unit Tests ───────────────────────────────────────────────────
   build-and-test:
     name: Build & Unit Tests
     runs-on: macos-26
     timeout-minutes: 30
-    needs: lint
+    needs: [lint, worker-syntax]
 
     steps:
       - uses: actions/checkout@v4

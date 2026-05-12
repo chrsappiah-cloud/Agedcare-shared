@@ -9,6 +9,7 @@ public protocol ResidentsRepositoryProtocol: AnyObject {
 
 public final class ResidentsRepository: ResidentsRepositoryProtocol {
   private let supabase: SupabaseClient
+  private let backupStore = ICloudBackupStore.shared
 
   public init(supabase: SupabaseClient) {
     self.supabase = supabase
@@ -16,7 +17,16 @@ public final class ResidentsRepository: ResidentsRepositoryProtocol {
 
   public func getResidents(facilityId: UUID) async throws -> [ResidentDTO] {
     let req = GetResidentsRequest(p_facility_id: facilityId.uuidString)
-    return try await supabase.rpc("get_residents_for_facility", payload: req)
+    do {
+      let residents: [ResidentDTO] = try await supabase.rpc("get_residents_for_facility", payload: req)
+      backupStore.saveResidents(residents, facilityId: facilityId)
+      return residents
+    } catch {
+      if let cachedResidents = backupStore.loadResidents(facilityId: facilityId) {
+        return cachedResidents
+      }
+      throw error
+    }
   }
 
   public func getFallCount(residentId: UUID, days: Int) async throws -> Int {
@@ -26,7 +36,16 @@ public final class ResidentsRepository: ResidentsRepositoryProtocol {
 
   public func getTimeline(residentId: UUID, limit: Int = 50) async throws -> [TimelineEntryDTO] {
     let req = GetTimelineRequest(p_resident_id: residentId.uuidString, p_limit: limit)
-    return try await supabase.rpc("get_resident_timeline", payload: req)
+    do {
+      let timeline: [TimelineEntryDTO] = try await supabase.rpc("get_resident_timeline", payload: req)
+      backupStore.saveTimeline(timeline, residentId: residentId)
+      return timeline
+    } catch {
+      if let cachedTimeline = backupStore.loadTimeline(residentId: residentId) {
+        return cachedTimeline
+      }
+      throw error
+    }
   }
 
   public func recordVitalEvent(facilityId: UUID, residentId: UUID, metric: String, value: Double, timestamp: Date) async throws {

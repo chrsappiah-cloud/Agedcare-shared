@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AlertModel: Identifiable, Decodable {
+public struct AlertModel: Identifiable, Codable {
   public let id: Int64
   public let residentId: UUID
   public let type: String
@@ -8,6 +8,24 @@ public struct AlertModel: Identifiable, Decodable {
   public let priority: Int
   public let createdAt: Date
   public let assignedStaffId: UUID?
+
+  public init(
+    id: Int64,
+    residentId: UUID,
+    type: String,
+    status: String,
+    priority: Int,
+    createdAt: Date,
+    assignedStaffId: UUID?
+  ) {
+    self.id = id
+    self.residentId = residentId
+    self.type = type
+    self.status = status
+    self.priority = priority
+    self.createdAt = createdAt
+    self.assignedStaffId = assignedStaffId
+  }
 
   enum CodingKeys: String, CodingKey {
     case id
@@ -86,7 +104,7 @@ public struct CloseAlertRequest: Encodable {
 
 // MARK: - Residents
 
-public struct ResidentDTO: Decodable {
+public struct ResidentDTO: Codable {
   public let id: UUID
   public let facility_id: UUID
   public let name: String
@@ -119,7 +137,7 @@ public struct GetTimelineRequest: Encodable {
   }
 }
 
-public struct TimelineEntryDTO: Decodable {
+public struct TimelineEntryDTO: Codable {
   public let kind: String
   public let ts: String
   public let summary: String
@@ -132,7 +150,7 @@ public struct GetFacilityStatsRequest: Encodable {
   public init(p_facility_id: String) { self.p_facility_id = p_facility_id }
 }
 
-public struct FacilityStatsDTO: Decodable {
+public struct FacilityStatsDTO: Codable {
   public let falls_last_7d: Int
   public let open_alerts: Int
   public let avg_acknowledge_minutes: Int

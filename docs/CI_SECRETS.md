@@ -15,6 +15,8 @@ Configure each one at:
 | `ASC_ISSUER_ID` | App Store Connect issuer UUID | Same page, top of the Keys tab |
 | `ASC_PRIVATE_KEY_BASE64` | The `.p8` API key file, base64 | `base64 -i AuthKey_ABC1234567.p8 \| pbcopy` |
 | `BUILD_PROVISION_PROFILE_BASE64` *(optional fallback)* | App Store provisioning profile, base64 | `base64 -i ~/Downloads/Agedcare-shared.mobileprovision \| pbcopy` |
+| `BUILD_CERTIFICATE_BASE64` *(optional robust fallback)* | Apple Distribution certificate `.p12`, base64 | Export the signing certificate as `.p12`, then `base64 -i certificate.p12 \| pbcopy` |
+| `BUILD_CERTIFICATE_PASSWORD` *(required with `BUILD_CERTIFICATE_BASE64`)* | Password used to export the `.p12` | Choose during certificate export |
 
 ## One-time setup walkthrough
 
@@ -34,9 +36,32 @@ Once the 3 required secrets are set, re-trigger the workflow without re-tagging:
 
 The pre-flight step now prints `✅ All required App Store Connect secrets are present`
 or fails fast with a list of which ones are still missing. If cloud-managed
-profile creation is not permitted for the API key, also add
-`BUILD_PROVISION_PROFILE_BASE64` so the export step can use an existing
-App Store profile directly.
+signing is not permitted for the API key, add:
+
+- `BUILD_PROVISION_PROFILE_BASE64`
+- `BUILD_CERTIFICATE_BASE64`
+- `BUILD_CERTIFICATE_PASSWORD`
+
+so the workflow can archive and export with an imported Apple Distribution
+certificate instead of relying on App Store Connect cloud signing.
+
+## Cloudflare Worker deployment secrets
+
+The `CD — Cloudflare Worker` workflow requires these repository secrets:
+
+| Secret | Purpose |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Deploy the worker via Wrangler |
+| `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account |
+
+And these repository variables:
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Supabase project URL |
+| `PRIMARY_API_URL` | Primary backend origin |
+| `AI_API_URL` | Optional AI backend origin |
+| `ALLOWED_ORIGINS` | Comma-separated CORS allowlist |
 
 ## Rotating
 

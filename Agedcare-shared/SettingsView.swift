@@ -4,6 +4,7 @@ struct SettingsView: View {
   let staff: StaffUserModel
   let session: SessionViewModel
   @EnvironmentObject var container: DependencyContainer
+  @StateObject private var backendHealth = BackendHealthService.shared
   @State private var showCamera = false
   @State private var showPhotoLibrary = false
   @State private var profileImage: UIImage?
@@ -100,6 +101,35 @@ struct SettingsView: View {
         .listRowBackground(AppTheme.surface)
 
         Section {
+          LabeledContent("Provider", value: backendHealth.providerDescription)
+            .foregroundColor(AppTheme.textPrimary)
+          LabeledContent("API", value: backendHealth.endpointDescription)
+            .foregroundColor(AppTheme.textPrimary)
+          LabeledContent("Cloudflare backup", value: backendHealth.cloudflareBackupStatus)
+            .foregroundColor(AppTheme.textPrimary)
+          LabeledContent("iCloud backup", value: backendHealth.iCloudBackupStatus)
+            .foregroundColor(AppTheme.textPrimary)
+          LabeledContent("CloudKit backup", value: backendHealth.cloudKitBackupStatus)
+            .foregroundColor(AppTheme.textPrimary)
+          HStack {
+            Label(backendHealth.statusSummary, systemImage: backendHealth.isHealthy ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+              .foregroundColor(backendHealth.isHealthy ? AppTheme.emeraldGreen : AppTheme.warning)
+            Spacer()
+            Button("Refresh") {
+              Task { await backendHealth.refresh() }
+            }
+            .foregroundColor(AppTheme.emeraldGreen)
+          }
+          if let checkedAt = backendHealth.lastChecked {
+            LabeledContent("Last checked", value: checkedAt.formatted(date: .omitted, time: .shortened))
+              .foregroundColor(AppTheme.textSecondary)
+          }
+        } header: {
+          Text("Backend").sectionHeaderStyle()
+        }
+        .listRowBackground(AppTheme.surface)
+
+        Section {
           NavigationLink(destination: WatchPreviewView()) {
             Label("Watch Preview", systemImage: "applewatch")
               .foregroundColor(AppTheme.emeraldGreen)
@@ -161,6 +191,7 @@ struct SettingsView: View {
       .scrollContentBackground(.hidden)
       .background(AppTheme.gradientDiamond.ignoresSafeArea())
       .navigationTitle("Settings")
+      .task { await backendHealth.refresh() }
       .confirmationDialog("Change profile photo", isPresented: $showCamera) {
         Button("Camera") { showCamera = true }
         Button("Photo Library") { showPhotoLibrary = true }

@@ -1,33 +1,59 @@
 import Foundation
 import CoreLocation
 import Combine
+import MapKit
 
 #if canImport(WeatherKit)
 import WeatherKit
 #endif
 
-// MARK: - Weather snapshot (WeatherKit-agnostic for testability)
+// MARK: - Weather snapshot
 struct WeatherSnapshot {
     var locationName: String = ""
-    var outdoorTemperature: Double?   // °C
-    var feelsLike: Double?            // °C
-    var humidity: Double?             // 0–1
+    var outdoorTemperature: Double?
+    var feelsLike: Double?
+    var humidity: Double?
     var conditionDescription: String = ""
     var conditionSymbol: String = "sun.max.fill"
-    /// Estimated room temperature: outdoor temp shifted toward 22 °C (comfortable indoor baseline)
+    var actualRoomTemperature: Double?
+    var roomTemperatureSource: String = ""
+    var coordinate: CLLocationCoordinate2D?
+    var recentCoordinates: [CLLocationCoordinate2D] = []
+    var currentSpeedMetersPerSecond: Double?
+    var headingDegrees: Double?
+    var totalDistanceMeters: Double = 0
+    var horizontalAccuracyMeters: Double?
+    var lastUpdated: Date?
+
     var estimatedRoomTemperature: Double? {
         guard let t = outdoorTemperature else { return nil }
-        return (t + 22.0) / 2.0
+        let baseline = feelsLike ?? 22.0
+        return (t + baseline + 22.0) / 3.0
     }
 
-    // MARK: - Formatting helpers (used by WeatherView + unit tests)
+    var roomTemperature: Double? {
+        actualRoomTemperature ?? estimatedRoomTemperature
+    }
+
+    var hasActualRoomTemperature: Bool {
+        actualRoomTemperature != nil
+    }
+
+    var mapRegion: MKCoordinateRegion? {
+        guard let coordinate else { return nil }
+        return MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+        )
+    }
+
     func formattedOutdoorTemp(unit: UnitTemperature = .celsius) -> String {
         guard let t = outdoorTemperature else { return "--" }
         return formatted(t, unit: unit)
     }
 
     func formattedRoomTemp(unit: UnitTemperature = .celsius) -> String {
-        guard let t = estimatedRoomTemperature else { return "--" }
+        guard let t = roomTemperature else { return "--" }
         return formatted(t, unit: unit)
     }
 
@@ -36,13 +62,48 @@ struct WeatherSnapshot {
         return "\(Int((h * 100).rounded()))%"
     }
 
+    func formattedCoordinates() -> String {
+        guard let coordinate else { return "Location unavailable" }
+        return String(format: "%.5f, %.5f", coordinate.latitude, coordinate.longitude)
+    }
+
+    func formattedSpeed() -> String {
+        guard let speed = currentSpeedMetersPerSecond, speed >= 0 else { return "--" }
+        let kilometersPerHour = speed * 3.6
+        return String(format: "%.1f km/h", kilometersPerHour)
+    }
+
+    func formattedDistance() -> String {
+        guard totalDistanceMeters > 0 else { return "0 m" }
+        if totalDistanceMeters >= 1_000 {
+            return String(format: "%.2f km", totalDistanceMeters / 1_000)
+        }
+        return "\(Int(totalDistanceMeters.rounded())) m"
+    }
+
+    func movementStateDescription() -> String {
+        if let speed = currentSpeedMetersPerSecond, speed >= 0.4 {
+            return "Moving"
+        }
+        if totalDistanceMeters > 0 {
+            return "Stationary"
+        }
+        return "Monitoring"
+    }
+
+    func roomTemperatureSourceDescription() -> String {
+        if hasActualRoomTemperature {
+            return roomTemperatureSource.isEmpty ? "Home sensor" : roomTemperatureSource
+        }
+        return "Estimated from local weather"
+    }
+
     private func formatted(_ celsius: Double, unit: UnitTemperature) -> String {
-        let meas = Measurement(value: celsius, unit: UnitTemperature.celsius).converted(to: unit)
-        return String(format: "%.1f °%@", meas.value, unit == .celsius ? "C" : "F")
+        let measurement = Measurement(value: celsius, unit: UnitTemperature.celsius).converted(to: unit)
+        return String(format: "%.1f °%@", measurement.value, unit == .celsius ? "C" : "F")
     }
 }
 
-// MARK: - Service
 @MainActor
 final class LocationWeatherService: NSObject, ObservableObject, CLLocationManagerDelegate {
     static let shared = LocationWeatherService()
@@ -53,62 +114,136 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
     @Published var error: String?
 
     private let manager = CLLocationManager()
+    private let roomTemperatureService = HomeRoomTemperatureService.shared
     private var lastLocation: CLLocation?
-    private var geocoder = CLGeocoder()
+    private var lastWeatherFetchLocation: CLLocation?
+    private var lastWeatherFetchDate: Date?
+    private var cancellables: Set<AnyCancellable> = []
 
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        manager.distanceFilter = 5
+        manager.activityType = .fitness
         authorizationStatus = manager.authorizationStatus
+
+        roomTemperatureService.$latestReading
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] reading in
+                guard let self else { return }
+                self.snapshot.actualRoomTemperature = reading?.temperatureCelsius
+                self.snapshot.roomTemperatureSource = reading?.sourceName ?? ""
+            }
+            .store(in: &cancellables)
     }
 
     func requestPermissionAndStart() {
+        roomTemperatureService.start()
         switch manager.authorizationStatus {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways:
-            manager.startUpdatingLocation()
+            startLocationUpdates()
         default:
-            error = "Location access denied. Enable it in Settings to see weather."
+            error = "Location access denied. Enable it in Settings to map resident location and weather."
         }
     }
 
-    // MARK: CLLocationManagerDelegate
+    func stop() {
+        manager.stopUpdatingLocation()
+        manager.stopUpdatingHeading()
+    }
+
+    private func startLocationUpdates() {
+        manager.startUpdatingLocation()
+        if CLLocationManager.headingAvailable() {
+            manager.startUpdatingHeading()
+        }
+    }
+
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
             self.authorizationStatus = status
             if status == .authorizedWhenInUse || status == .authorizedAlways {
-                manager.startUpdatingLocation()
+                self.startLocationUpdates()
             }
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let loc = locations.last else { return }
+        guard let location = locations.last else { return }
         Task { @MainActor in
-            manager.stopUpdatingLocation()
-            await self.fetchWeather(for: loc)
+            await self.process(location: location)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        Task { @MainActor in
+            guard newHeading.trueHeading >= 0 else { return }
+            self.snapshot.headingDegrees = newHeading.trueHeading
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError err: Error) {
-        Task { @MainActor in self.error = err.localizedDescription }
+        Task { @MainActor in
+            self.error = err.localizedDescription
+        }
     }
 
-    // MARK: - Weather fetch
+    private func process(location: CLLocation) async {
+        guard location.horizontalAccuracy >= 0 else { return }
+
+        if let lastLocation {
+            let distance = location.distance(from: lastLocation)
+            if distance >= 1 {
+                snapshot.totalDistanceMeters += distance
+            }
+        }
+
+        snapshot.coordinate = location.coordinate
+        snapshot.locationName = snapshot.formattedCoordinates()
+        snapshot.currentSpeedMetersPerSecond = location.speed >= 0 ? location.speed : nil
+        snapshot.horizontalAccuracyMeters = location.horizontalAccuracy
+        snapshot.lastUpdated = Date()
+
+        appendCoordinateIfNeeded(location.coordinate)
+        lastLocation = location
+
+        if shouldRefreshWeather(for: location) {
+            await fetchWeather(for: location)
+        }
+    }
+
+    private func appendCoordinateIfNeeded(_ coordinate: CLLocationCoordinate2D) {
+        let shouldAppend: Bool
+        if let lastCoordinate = snapshot.recentCoordinates.last {
+            let previous = CLLocation(latitude: lastCoordinate.latitude, longitude: lastCoordinate.longitude)
+            let current = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            shouldAppend = current.distance(from: previous) >= 3
+        } else {
+            shouldAppend = true
+        }
+
+        guard shouldAppend else { return }
+        snapshot.recentCoordinates.append(coordinate)
+        snapshot.recentCoordinates = Array(snapshot.recentCoordinates.suffix(20))
+    }
+
+    private func shouldRefreshWeather(for location: CLLocation) -> Bool {
+        guard let lastWeatherFetchDate, let lastWeatherFetchLocation else { return true }
+        if Date().timeIntervalSince(lastWeatherFetchDate) > 600 {
+            return true
+        }
+        return location.distance(from: lastWeatherFetchLocation) >= 100
+    }
+
     private func fetchWeather(for location: CLLocation) async {
         isLoading = true
         error = nil
 
-        // Reverse-geocode for a friendly place name
-        if let placemark = try? await geocoder.reverseGeocodeLocation(location).first {
-            snapshot.locationName = [placemark.locality, placemark.administrativeArea]
-                .compactMap { $0 }.joined(separator: ", ")
-        }
-
-#if canImport(WeatherKit)
+        #if canImport(WeatherKit)
         do {
             let weather = try await WeatherService.shared.weather(for: location)
             let current = weather.currentWeather
@@ -117,17 +252,21 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
             snapshot.humidity = current.humidity
             snapshot.conditionDescription = current.condition.description
             snapshot.conditionSymbol = current.symbolName
+            lastWeatherFetchDate = Date()
+            lastWeatherFetchLocation = location
         } catch {
             self.error = "Weather unavailable: \(error.localizedDescription)"
         }
-#else
-        // Simulator / preview fallback
+        #else
         snapshot.outdoorTemperature = 22.0
         snapshot.feelsLike = 21.0
         snapshot.humidity = 0.55
         snapshot.conditionDescription = "Partly Cloudy"
         snapshot.conditionSymbol = "cloud.sun.fill"
-#endif
+        lastWeatherFetchDate = Date()
+        lastWeatherFetchLocation = location
+        #endif
+
         isLoading = false
     }
 }

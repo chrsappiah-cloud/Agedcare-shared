@@ -55,12 +55,12 @@ final class AlertViewModel: ObservableObject {
   func acknowledge(alertId: Int64, staffId: UUID) async throws {
     guard let repo = alertsRepository else { return }
     try await repo.acknowledgeAlert(alertId: alertId, staffId: staffId)
-    try await loadAlerts()
+    await loadAlerts()
   }
 
   func close(alertId: Int64, notes: String) async throws {
     guard let repo = alertsRepository else { return }
     try await repo.closeAlert(alertId: alertId, notes: notes)
-    try await loadAlerts()
+    await loadAlerts()
   }
 }

@@ -4,6 +4,7 @@ public final class SupabaseClient {
   private let config: SupabaseConfig
   private let session: URLSession
   private let accessTokenProvider: () -> String?
+  private let requestFactory: BackendRequestFactory
 
   public init(
     config: SupabaseConfig,
@@ -13,6 +14,11 @@ public final class SupabaseClient {
     self.config = config
     self.session = session
     self.accessTokenProvider = accessTokenProvider
+    self.requestFactory = BackendRequestFactory(
+      baseURL: config.baseURL,
+      apiKey: config.apiKey,
+      accessTokenProvider: accessTokenProvider
+    )
   }
 
   public func rpc<T: Decodable>(_ name: String, payload: Encodable) async throws -> T {
@@ -27,24 +33,15 @@ public final class SupabaseClient {
   }
 
   public func rpcVoid(_ name: String, payload: Encodable) async throws {
-    try await performRPC(name, payload: payload)
+    _ = try await performRPC(name, payload: payload)
   }
 
   private func performRPC(_ name: String, payload: Encodable) async throws -> Data {
-    var url = config.baseURL
-    url.appendPathComponent("/rest/v1/rpc/\(name)")
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("application/json", forHTTPHeaderField: "Accept")
-    request.setValue(config.apiKey, forHTTPHeaderField: "apikey")
-    if let token = accessTokenProvider() {
-      request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    }
+    var request = try requestFactory.makeRPCRequest(name, authorized: accessTokenProvider() != nil)
 
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
-    request.httpBody = try encoder.encode(AnyEncodable(payload))
+    try request.encodeJSONBody(AnyEncodable(payload), encoder: encoder)
 
     let (data, response) = try await session.data(for: request)
     guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {

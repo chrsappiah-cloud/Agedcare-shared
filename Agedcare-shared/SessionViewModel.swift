@@ -6,7 +6,7 @@ final class SessionViewModel: ObservableObject {
   @Published var state: SessionState = .onboarding
   @Published var loginError: String?
 
-  private let baseURL = AppHost.baseURL
+  private let requestFactory = BackendRequestFactory()
 
   func setResident(facilityId: UUID, residentId: UUID) {
     UserDefaults.standard.set(facilityId.uuidString, forKey: "last_facility_id")
@@ -31,13 +31,11 @@ final class SessionViewModel: ObservableObject {
 
     do {
       // 1. Authenticate
-      var req = URLRequest(url: baseURL.appendingPathComponent("/auth/v1/token"))
-      req.httpMethod = "POST"
-      req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      var req = try requestFactory.makeAuthRequest(path: "auth/v1/token")
       let body: [String: String] = [
         "email": email, "password": password, "grant_type": "password",
       ]
-      req.httpBody = try JSONEncoder().encode(body)
+      try req.encodeJSONBody(body)
 
       let (data, resp) = try await URLSession.shared.data(for: req)
       guard let http = resp as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
@@ -51,12 +49,9 @@ final class SessionViewModel: ObservableObject {
       guard let userId = UUID(uuidString: loginResp.user.id) else {
         throw LoginError.invalidResponse("Invalid user ID format")
       }
-      var rpcReq = URLRequest(url: baseURL.appendingPathComponent("/rest/v1/rpc/get_staff_info"))
-      rpcReq.httpMethod = "POST"
-      rpcReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      rpcReq.setValue("Bearer \(loginResp.accessToken)", forHTTPHeaderField: "Authorization")
+      var rpcReq = try requestFactory.makeRPCRequest("get_staff_info")
       let rpcBody: [String: String] = ["p_user_id": loginResp.user.id]
-      rpcReq.httpBody = try JSONEncoder().encode(rpcBody)
+      try rpcReq.encodeJSONBody(rpcBody)
 
       let (staffData, staffResp) = try await URLSession.shared.data(for: rpcReq)
       guard let staffHttp = staffResp as? HTTPURLResponse, staffHttp.statusCode == 200 else {
@@ -77,6 +72,9 @@ final class SessionViewModel: ObservableObject {
       state = .staff(staff)
 
     } catch let error as LoginError {
+      loginError = error.localizedDescription
+      state = .onboarding
+    } catch let error as BackendConfigurationError {
       loginError = error.localizedDescription
       state = .onboarding
     } catch {

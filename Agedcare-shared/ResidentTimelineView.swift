@@ -5,6 +5,7 @@ struct ResidentTimelineView: View {
   @EnvironmentObject var container: DependencyContainer
   @State private var entries: [TimelineEntryDTO] = []
   @State private var loadError: String?
+  private let refreshIntervalNanoseconds: UInt64 = 10_000_000_000
 
   var body: some View {
     List(entries, id: \.ts) { entry in
@@ -18,7 +19,7 @@ struct ResidentTimelineView: View {
       }
     }
     .navigationTitle("Timeline")
-    .task { await loadTimeline() }
+    .task { await liveRefreshLoop() }
     .overlay {
       if entries.isEmpty {
         if let error = loadError {
@@ -30,9 +31,17 @@ struct ResidentTimelineView: View {
     }
   }
 
+  private func liveRefreshLoop() async {
+    while !Task.isCancelled {
+      await loadTimeline()
+      try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
+    }
+  }
+
   private func loadTimeline() async {
     do {
       entries = try await container.residentsRepository.getTimeline(residentId: resident.id)
+      loadError = nil
     } catch {
       loadError = error.localizedDescription
     }

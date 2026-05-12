@@ -548,8 +548,8 @@ struct BackendHealthProbeTests {
     @Test func weatherSnapshotFormattedRoomTemp() {
         var snap = WeatherSnapshot()
         snap.outdoorTemperature = 30.0
-        // estimated = (30 + 22) / 2 = 26.0
-        #expect(snap.formattedRoomTemp() == "26.0 °C")
+        // estimated = (30 + 22 + 22) / 3 = 24.7
+        #expect(snap.formattedRoomTemp() == "24.7 °C")
     }
 
     @Test func weatherSnapshotFormattedHumidity() {

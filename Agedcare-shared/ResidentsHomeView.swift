@@ -7,6 +7,7 @@ struct ResidentsHomeView: View {
   @State private var residents: [ResidentModel] = []
   @State private var isLoading = false
   @State private var loadError: String?
+  private let refreshIntervalNanoseconds: UInt64 = 20_000_000_000
 
   var body: some View {
     NavigationStack {
@@ -31,12 +32,19 @@ struct ResidentsHomeView: View {
       .navigationTitle("Residents")
       .searchable(text: $searchText)
       .refreshable { await loadResidents() }
-      .task { await loadResidents() }
+      .task { await liveRefreshLoop() }
       .overlay {
         if isLoading { ProgressView("Loading\u{2026}") }
         else if let error = loadError { Text(error).foregroundColor(.red).padding() }
         else if residents.isEmpty { Text("No residents found").foregroundColor(.secondary) }
       }
+    }
+  }
+
+  private func liveRefreshLoop() async {
+    while !Task.isCancelled {
+      await loadResidents()
+      try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
     }
   }
 
@@ -60,6 +68,7 @@ struct ResidentsHomeView: View {
           dateOfBirth: dto.date_of_birth.flatMap { ISO8601DateFormatter().date(from: $0) }
         )
       }
+      loadError = nil
     } catch {
       loadError = error.localizedDescription
     }

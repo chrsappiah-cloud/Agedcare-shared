@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LoginView: View {
   @EnvironmentObject var session: SessionViewModel
+  @StateObject private var backendHealth = BackendHealthService.shared
   @State private var email = ""
   @State private var password = ""
 
@@ -46,6 +47,11 @@ struct LoginView: View {
           .accessibilityLabel("Login error: \(error)")
       }
 
+      Text("Backend: \(backendHealth.statusSummary)")
+        .font(.caption)
+        .foregroundColor(backendHealth.isHealthy ? AppTheme.emeraldGreen : AppTheme.warning)
+        .multilineTextAlignment(.center)
+
       Button(action: {
         Task { await session.login(email: email, password: password) }
       }) {
@@ -81,6 +87,7 @@ struct LoginView: View {
     }
     .padding(32)
     .background(AppTheme.background)
+    .task { await backendHealth.refresh() }
     .accessibilityElement(children: .contain)
   }
 }
