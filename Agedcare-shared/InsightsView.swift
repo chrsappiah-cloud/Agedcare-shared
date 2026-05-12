@@ -41,7 +41,7 @@ struct InsightsView: View {
       stats = try await container.facilityRepository.getStats(facilityId: staff.facilityId)
       loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      loadError = error.userFacingMessage(fallback: "Insights are temporarily unavailable. Please pull to refresh and try again.")
     }
   }
 }

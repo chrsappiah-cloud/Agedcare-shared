@@ -690,7 +690,7 @@ struct BackendHealthProbeTests {
             lastSyncedAt: nil
         )
 
-        #expect(recording.resolvedSyncStatus == .localOnly)
+        #expect(recording.resolvedSyncStatus == IncidentSyncStatus.localOnly)
     }
 
     /// The Vercel marketing site (also linked from the app footer) must respond.

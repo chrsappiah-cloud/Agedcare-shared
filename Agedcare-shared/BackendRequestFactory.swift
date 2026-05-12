@@ -7,7 +7,7 @@ enum BackendConfigurationError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .missingAPIKey:
-      return "Backend configuration is incomplete: Supabase anon key is missing."
+      return "Care access is still being prepared."
     case .missingAccessToken:
       return "Authentication required. Please sign in again."
     }

@@ -6,7 +6,7 @@ enum StaffAccessSource: String {
 
   var label: String {
     switch self {
-    case .backend: return "Live backend"
+    case .backend: return "Live care service"
     case .localTesting: return "Subscription testing plan"
     }
   }

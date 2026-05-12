@@ -76,7 +76,7 @@ struct ResidentHomeView: View {
       triggerSOS()
     }
     .fullScreenCover(item: $selectedIncident) { incident in
-      VideoPlayerView(url: incident.fileURL, title: incident.type.capitalized)
+      VideoPlayerView(url: incident.preferredPlaybackURL, title: incident.type.capitalized)
     }
   }
 
@@ -202,6 +202,11 @@ struct ResidentHomeView: View {
               }
               if let summary = incident.backendSummary {
                 Text(summary)
+                  .font(.caption2)
+                  .foregroundColor(AppTheme.textSecondary)
+                  .lineLimit(2)
+              } else if let routeSummary = incident.storageRouteSummary {
+                Text(routeSummary)
                   .font(.caption2)
                   .foregroundColor(AppTheme.textSecondary)
                   .lineLimit(2)
@@ -412,7 +417,7 @@ struct ResidentHomeView: View {
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         try? await UNUserNotificationCenter.current().add(request)
       } catch {
-        coordinator.lastErrorMessage = error.localizedDescription
+        coordinator.lastErrorMessage = error.userFacingMessage(fallback: "We couldn't send your SOS update right now. Please try again.")
       }
     }
   }

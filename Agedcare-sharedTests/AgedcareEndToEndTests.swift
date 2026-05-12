@@ -47,6 +47,7 @@ struct EndToEndSmokeTests {
         }
     }
 
+    @MainActor
     @Test("Backend RPC contract stays complete and duplicate-free")
     func backendRPCContractRemainsComplete() {
         let expectedRPCs: Set<String> = [
@@ -64,6 +65,7 @@ struct EndToEndSmokeTests {
             "get_staff_info",
             "record_vital_event",
             "resolve_handoff_request",
+            "upsert_incident_media",
         ]
 
         #expect(Set(BackendHealthService.requiredRPCs) == expectedRPCs)

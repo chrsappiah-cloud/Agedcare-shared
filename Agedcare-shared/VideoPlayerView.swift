@@ -5,10 +5,17 @@ struct VideoPlayerView: View {
   let url: URL
   var title: String = "Incident Recording"
   @Environment(\.dismiss) private var dismiss
+  @State private var player: AVPlayer
+
+  init(url: URL, title: String = "Incident Recording") {
+    self.url = url
+    self.title = title
+    _player = State(initialValue: AVPlayer(url: url))
+  }
 
   var body: some View {
     ZStack(alignment: .topTrailing) {
-      VideoPlayer(player: AVPlayer(url: url))
+      VideoPlayer(player: player)
         .ignoresSafeArea()
 
       VStack(alignment: .leading, spacing: 4) {
@@ -32,6 +39,13 @@ struct VideoPlayerView: View {
           .shadow(radius: 4)
           .padding()
       }
+    }
+    .onAppear {
+      player.replaceCurrentItem(with: AVPlayerItem(url: url))
+      player.play()
+    }
+    .onDisappear {
+      player.pause()
     }
   }
 }

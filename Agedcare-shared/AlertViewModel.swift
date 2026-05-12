@@ -49,7 +49,7 @@ final class AlertViewModel: ObservableObject {
       alerts = try await repo.getOpenAlerts(facilityId: facilityId)
       WatchConnectivityService.shared.syncOpenAlerts(alerts, facilityId: facilityId.uuidString)
     } catch {
-      loadError = error.localizedDescription
+      loadError = error.userFacingMessage(fallback: "Alerts are temporarily unavailable. Pull to refresh and try again.")
     }
   }
 

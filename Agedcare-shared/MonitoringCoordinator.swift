@@ -210,7 +210,7 @@ final class MonitoringCoordinator: ObservableObject {
       }
       lastErrorMessage = nil
     } catch {
-      lastErrorMessage = "Alert creation failed: \(error.localizedDescription)"
+      lastErrorMessage = error.userFacingMessage(fallback: "Staff alerts are temporarily unavailable. Updates may take a little longer.")
     }
   }
 
@@ -253,7 +253,7 @@ extension MonitoringCoordinator: FallServiceDelegate {
   }
 
   func fallService(_ service: FallService, didFailWith error: Error) {
-    lastErrorMessage = error.localizedDescription
+    lastErrorMessage = error.userFacingMessage(fallback: "Fall monitoring is temporarily unavailable. Please keep the device nearby.")
   }
 
   private func startManagedIncidentCapture(type: String, priority: Int, title: String, body: String) {

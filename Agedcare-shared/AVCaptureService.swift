@@ -102,6 +102,11 @@ final class AVCaptureService: NSObject, ObservableObject {
     private var incidentWriterInput: AVAssetWriterInput?
     private var incidentStartTime: CMTime?
     private var activeIncidentContext: ActiveIncidentContext?
+    private let backupStore = ICloudBackupStore.shared
+    private let incidentMediaClient = SupabaseClient(
+        config: SupabaseConfig(baseURL: AppHost.supabaseBaseURL, apiKey: AppHost.supabaseAnonKey),
+        accessTokenProvider: { SupabaseAuthStore.shared.accessToken }
+    )
 
     let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     let incidentsDir: URL
@@ -112,6 +117,9 @@ final class AVCaptureService: NSObject, ObservableObject {
         super.init()
         try? FileManager.default.createDirectory(at: incidentsDir, withIntermediateDirectories: true)
         loadIncidentRecordings()
+        Task { [weak self] in
+            await self?.retryPendingIncidentSyncs()
+        }
     }
 
     // MARK: - Permission Requests
@@ -164,7 +172,7 @@ final class AVCaptureService: NSObject, ObservableObject {
             errorMessage = nil
         } catch {
             isCapturePipelineReady = false
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage(fallback: "Video capture is temporarily unavailable. Please try again.")
         }
     }
 
@@ -301,7 +309,7 @@ final class AVCaptureService: NSObject, ObservableObject {
             Task { @MainActor in
                 self?.isVideoRecording = false
                 if let error {
-                    self?.errorMessage = error.localizedDescription
+                    self?.errorMessage = error.userFacingMessage(fallback: "Video recording could not be completed.")
                 } else {
                     self?.lastRecordingURL = url
                 }
@@ -347,11 +355,17 @@ final class AVCaptureService: NSObject, ObservableObject {
             activeIncidentContext = nil
             return
         }
+        writer.shouldOptimizeForNetworkUse = true
 
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: 1280,
             AVVideoHeightKey: 720,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 3_500_000,
+                AVVideoExpectedSourceFrameRateKey: 30,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+            ],
         ]
         let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         writerInput.expectsMediaDataInRealTime = true
@@ -452,7 +466,7 @@ final class AVCaptureService: NSObject, ObservableObject {
             }
             return true
         } catch {
-            errorMessage = "Save to Photos failed: \(error.localizedDescription)"
+            errorMessage = error.userFacingMessage(fallback: "We couldn't save this video to Photos right now.")
             return false
         }
     }
@@ -533,12 +547,21 @@ final class AVCaptureService: NSObject, ObservableObject {
     private func persistIncidentRecordings() {
         guard let data = try? JSONEncoder().encode(incidentRecordings) else { return }
         UserDefaults.standard.set(data, forKey: "wcs.agedcare.incidentRecordings")
+        backupStore.saveIncidentRecordings(incidentRecordings)
     }
 
     private func loadIncidentRecordings() {
-        guard let data = UserDefaults.standard.data(forKey: "wcs.agedcare.incidentRecordings"),
-              let stored = try? JSONDecoder().decode([IncidentRecording].self, from: data) else { return }
-        incidentRecordings = stored.filter { FileManager.default.fileExists(atPath: $0.fileURL.path) }
+        let stored: [IncidentRecording]?
+        if let data = UserDefaults.standard.data(forKey: "wcs.agedcare.incidentRecordings"),
+           let decoded = try? JSONDecoder().decode([IncidentRecording].self, from: data) {
+            stored = decoded
+        } else {
+            stored = backupStore.loadIncidentRecordings()
+        }
+        guard let stored else { return }
+        incidentRecordings = stored.filter {
+            FileManager.default.fileExists(atPath: $0.fileURL.path) || $0.backendMediaURL != nil
+        }
     }
 
     func deleteIncidentRecording(_ recording: IncidentRecording) {
@@ -575,7 +598,7 @@ final class AVCaptureService: NSObject, ObservableObject {
             try data.write(to: url, options: .atomic)
             return url
         } catch {
-            errorMessage = "Unable to save incident snapshot: \(error.localizedDescription)"
+            errorMessage = error.userFacingMessage(fallback: "We couldn't save the incident preview image.")
             return nil
         }
     }
@@ -587,6 +610,10 @@ final class AVCaptureService: NSObject, ObservableObject {
             return
         }
 
+        updatedRecording.syncStatus = .pendingUpload
+        updatedRecording.syncError = nil
+        updateIncidentRecording(updatedRecording)
+
         if let analysis = await AIMonitoringService.shared.analyzeVideoFile(
             at: recording.fileURL,
             facilityId: facilityId.uuidString,
@@ -597,10 +624,46 @@ final class AVCaptureService: NSObject, ObservableObject {
             updatedRecording.backendAnalysisID = analysis.id
             updatedRecording.backendSummary = analysis.summary ?? analysis.insights.first
             updatedRecording.backendMediaURL = URL(string: analysis.media_url)
-            updatedRecording.lastSyncedAt = Date()
         } else {
+            updatedRecording.syncError = AIMonitoringService.shared.errorMessage
+        }
+
+        updatedRecording.cloudKitRecordName = await syncIncidentToCloudKit(updatedRecording) ?? updatedRecording.cloudKitRecordName
+
+        let syncRequest = IncidentMediaSyncRequest(
+            p_incident_id: updatedRecording.id,
+            p_facility_id: facilityId,
+            p_resident_id: updatedRecording.residentId,
+            p_incident_type: updatedRecording.type,
+            p_recorded_at: updatedRecording.timestamp,
+            p_duration_seconds: updatedRecording.duration,
+            p_local_filename: updatedRecording.fileURL.lastPathComponent,
+            p_snapshot_filename: updatedRecording.snapshotURL?.lastPathComponent,
+            p_external_media_url: updatedRecording.backendMediaURL?.absoluteString,
+            p_analysis_id: updatedRecording.backendAnalysisID,
+            p_summary: updatedRecording.backendSummary,
+            p_cloudkit_record_name: updatedRecording.cloudKitRecordName,
+            p_sync_status: (updatedRecording.backendMediaURL == nil ? IncidentSyncStatus.pendingUpload : IncidentSyncStatus.synced).rawValue,
+            p_metadata: makeIncidentMetadata(for: updatedRecording)
+        )
+
+        do {
+            let response: IncidentMediaSyncResponse = try await incidentMediaClient.rpc("upsert_incident_media", payload: syncRequest)
+            updatedRecording.supabaseIncidentID = UUID(uuidString: response.incidentID)
+            if updatedRecording.backendMediaURL == nil, let remoteURL = response.externalMediaURL {
+                updatedRecording.backendMediaURL = URL(string: remoteURL)
+            }
+            if updatedRecording.cloudKitRecordName == nil {
+                updatedRecording.cloudKitRecordName = response.cloudKitRecordName
+            }
+            updatedRecording.lastSyncedAt = response.syncedAt ?? Date()
+            updatedRecording.syncStatus = .synced
+            updatedRecording.syncError = nil
+        } catch {
             updatedRecording.syncStatus = .failed
-            updatedRecording.syncError = AIMonitoringService.shared.errorMessage ?? "Incident upload to monitoring backend failed"
+            updatedRecording.syncError = error.userFacingMessage(
+                fallback: "Incident sync is temporarily unavailable. The video remains available on this device."
+            )
         }
         updateIncidentRecording(updatedRecording)
     }
@@ -609,6 +672,49 @@ final class AVCaptureService: NSObject, ObservableObject {
         guard let index = incidentRecordings.firstIndex(where: { $0.id == recording.id }) else { return }
         incidentRecordings[index] = recording
         persistIncidentRecordings()
+    }
+
+    private func makeIncidentMetadata(for recording: IncidentRecording) -> [String: AnyCodable] {
+        var metadata: [String: AnyCodable] = [
+            "has_pre_incident_footage": AnyCodable(recording.hasPreIncidentFootage),
+            "local_file_available": AnyCodable(FileManager.default.fileExists(atPath: recording.fileURL.path)),
+            "sync_status": AnyCodable(recording.resolvedSyncStatus.rawValue),
+        ]
+        if let location = recording.locationSnapshot {
+            metadata["location_name"] = AnyCodable(location.locationName)
+            metadata["movement_summary"] = AnyCodable(location.movementSummary)
+            metadata["latitude"] = AnyCodable(location.latitude as Any)
+            metadata["longitude"] = AnyCodable(location.longitude as Any)
+            metadata["room_temperature_celsius"] = AnyCodable(location.roomTemperatureCelsius as Any)
+            metadata["room_temperature_source"] = AnyCodable(location.roomTemperatureSource as Any)
+        }
+        if let snapshotFilename = recording.snapshotURL?.lastPathComponent {
+            metadata["snapshot_filename"] = AnyCodable(snapshotFilename)
+        }
+        return metadata
+    }
+
+    private func retryPendingIncidentSyncs() async {
+        let pending = incidentRecordings.filter {
+            $0.facilityId != nil
+                && $0.resolvedSyncStatus != .synced
+                && FileManager.default.fileExists(atPath: $0.fileURL.path)
+        }
+        for recording in pending {
+            await processIncidentRecording(recording)
+        }
+    }
+
+    private func syncIncidentToCloudKit(_ recording: IncidentRecording) async -> String? {
+        #if canImport(CloudKit)
+        do {
+            return try await CloudKitService.shared.saveIncidentRecording(recording)
+        } catch {
+            return recording.cloudKitRecordName
+        }
+        #else
+        return nil
+        #endif
     }
 }
 
@@ -630,10 +736,73 @@ struct IncidentRecording: Identifiable, Codable {
     var backendAnalysisID: String?
     var backendSummary: String?
     var backendMediaURL: URL?
+    var cloudKitRecordName: String?
+    var supabaseIncidentID: UUID?
     var lastSyncedAt: Date?
+
+    init(
+        id: UUID,
+        type: String,
+        timestamp: Date,
+        fileURL: URL,
+        residentId: UUID?,
+        duration: TimeInterval,
+        hasPreIncidentFootage: Bool,
+        facilityId: UUID?,
+        snapshotURL: URL?,
+        locationSnapshot: IncidentLocationSnapshot?,
+        syncStatus: IncidentSyncStatus? = nil,
+        syncError: String? = nil,
+        backendAnalysisID: String? = nil,
+        backendSummary: String? = nil,
+        backendMediaURL: URL? = nil,
+        cloudKitRecordName: String? = nil,
+        supabaseIncidentID: UUID? = nil,
+        lastSyncedAt: Date? = nil
+    ) {
+        self.id = id
+        self.type = type
+        self.timestamp = timestamp
+        self.fileURL = fileURL
+        self.residentId = residentId
+        self.duration = duration
+        self.hasPreIncidentFootage = hasPreIncidentFootage
+        self.facilityId = facilityId
+        self.snapshotURL = snapshotURL
+        self.locationSnapshot = locationSnapshot
+        self.syncStatus = syncStatus
+        self.syncError = syncError
+        self.backendAnalysisID = backendAnalysisID
+        self.backendSummary = backendSummary
+        self.backendMediaURL = backendMediaURL
+        self.cloudKitRecordName = cloudKitRecordName
+        self.supabaseIncidentID = supabaseIncidentID
+        self.lastSyncedAt = lastSyncedAt
+    }
 
     var resolvedSyncStatus: IncidentSyncStatus {
         syncStatus ?? .localOnly
+    }
+
+    var preferredPlaybackURL: URL {
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            return fileURL
+        }
+        return backendMediaURL ?? fileURL
+    }
+
+    var storageRouteSummary: String? {
+        var parts = [String]()
+        if supabaseIncidentID != nil {
+            parts.append("Care database synced")
+        }
+        if cloudKitRecordName != nil {
+            parts.append("iCloud backup ready")
+        }
+        if backendMediaURL != nil {
+            parts.append("Secure video link ready")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
 }
 

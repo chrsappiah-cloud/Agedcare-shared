@@ -136,7 +136,7 @@ struct AlertDetailView: View {
       try await container.alertsRepository.acknowledgeAlert(alertId: alert.id, staffId: staff.id)
       isAcknowledged = true
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "This alert could not be updated right now. Please try again.")
     }
   }
 
@@ -146,7 +146,7 @@ struct AlertDetailView: View {
       try await container.alertsRepository.closeAlert(alertId: alert.id, notes: notes)
       isClosing = true
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "This alert could not be updated right now. Please try again.")
     }
   }
 }

@@ -63,6 +63,7 @@ final class BackendHealthService: ObservableObject {
         "get_pending_handoffs",
         "resolve_handoff_request",
         "record_vital_event",
+        "upsert_incident_media",
     ]
 
     enum Status {

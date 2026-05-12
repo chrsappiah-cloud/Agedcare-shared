@@ -66,7 +66,7 @@ final class AIMonitoringService: ObservableObject {
       let decoder = JSONDecoder()
       return try decoder.decode(MediaAnalysisResult.self, from: data)
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "Monitoring analysis is temporarily unavailable. Please try again shortly.")
       return nil
     }
   }
@@ -86,7 +86,7 @@ final class AIMonitoringService: ObservableObject {
       recentInsights = try decoder.decode([MediaAnalysisResult].self, from: data)
       backupStore.saveInsights(recentInsights, facilityId: facilityId)
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "Monitoring insights are temporarily unavailable. Showing the latest saved updates instead.")
       if let cached = backupStore.loadInsights(facilityId: facilityId) {
         recentInsights = cached
       }
@@ -107,7 +107,7 @@ final class AIMonitoringService: ObservableObject {
       let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
       return json?["session_id"] as? String
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "Monitoring could not start right now. Please try again.")
       return nil
     }
   }
@@ -117,7 +117,7 @@ final class AIMonitoringService: ObservableObject {
       let req = try requestFactory.makeRequest(path: "ai/monitor/\(sessionId)/stop", method: "POST")
       _ = try await session.data(for: req)
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "Monitoring could not stop cleanly. Please try again.")
     }
   }
 
@@ -127,7 +127,7 @@ final class AIMonitoringService: ObservableObject {
       req.httpBody = try JSONEncoder().encode(event)
       _ = try await session.data(for: req)
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "Monitoring updates are temporarily unavailable. Please try again.")
     }
   }
 
@@ -141,7 +141,7 @@ final class AIMonitoringService: ObservableObject {
       activeSessions = try decoder.decode([AudioMonitorSession].self, from: data)
       backupStore.saveSessions(activeSessions, facilityId: facilityId)
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "Monitoring sessions are temporarily unavailable. Showing the latest saved updates instead.")
       if let cached = backupStore.loadSessions(facilityId: facilityId) {
         activeSessions = cached
       }
@@ -158,7 +158,7 @@ final class AIMonitoringService: ObservableObject {
       recentEvents = try decoder.decode([AudioMonitorEvent].self, from: data)
       backupStore.saveEvents(recentEvents, facilityId: facilityId)
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = error.userFacingMessage(fallback: "Recent monitoring events are temporarily unavailable. Showing the latest saved updates instead.")
       if let cached = backupStore.loadEvents(facilityId: facilityId) {
         recentEvents = cached
       }

@@ -64,7 +64,7 @@ struct MediaInsightsDashboardView: View {
         AudioMonitorView(staff: staff, aiService: AIMonitoringService.shared)
       }
       .fullScreenCover(item: $selectedIncident) { incident in
-        VideoPlayerView(url: incident.fileURL, title: incident.type.replacingOccurrences(of: "_", with: " ").capitalized)
+        VideoPlayerView(url: incident.preferredPlaybackURL, title: incident.type.replacingOccurrences(of: "_", with: " ").capitalized)
       }
     }
   }
@@ -308,6 +308,11 @@ struct IncidentRecordingRow: View {
 
           if let summary = incident.backendSummary {
             Text(summary)
+              .font(.caption2)
+              .foregroundColor(.secondary)
+              .lineLimit(2)
+          } else if let routeSummary = incident.storageRouteSummary {
+            Text(routeSummary)
               .font(.caption2)
               .foregroundColor(.secondary)
               .lineLimit(2)

@@ -58,14 +58,14 @@ final class SessionViewModel: ObservableObject {
       guard let staffHttp = staffResp as? HTTPURLResponse else {
         throw LoginError.invalidResponse("Missing staff lookup response")
       }
-      guard staffHttp.statusCode == 200 else {
-        if staffHttp.statusCode == 404,
-          String(data: staffData, encoding: .utf8)?.contains("PGRST202") == true
-        {
-          throw LoginError.invalidResponse("Staff lookup RPC is not deployed on the backend")
+        guard staffHttp.statusCode == 200 else {
+          if staffHttp.statusCode == 404,
+            String(data: staffData, encoding: .utf8)?.contains("PGRST202") == true
+          {
+            throw LoginError.invalidResponse("Care records are still being prepared")
+          }
+          throw LoginError.staffNotFound
         }
-        throw LoginError.staffNotFound
-      }
 
       let staffInfo = try JSONDecoder().decode(StaffInfoResponse.self, from: staffData)
       guard let facilityId = UUID(uuidString: staffInfo.facilityId) else {
@@ -88,19 +88,19 @@ final class SessionViewModel: ObservableObject {
       if fallbackToTestingAccessIfAvailable(email: email, password: password) {
         return
       }
-      loginError = error.localizedDescription
+      loginError = error.userFacingMessage(fallback: "We couldn't complete sign in. Please try again.")
       state = .onboarding
     } catch let error as BackendConfigurationError {
       if fallbackToTestingAccessIfAvailable(email: email, password: password) {
         return
       }
-      loginError = "Sign in isn't available right now. Please try again shortly."
+      loginError = error.userFacingMessage(fallback: "Sign in isn't available right now. Please try again shortly.")
       state = .onboarding
     } catch {
       if fallbackToTestingAccessIfAvailable(email: email, password: password) {
         return
       }
-      loginError = "Sign in isn't available right now. Please try again shortly."
+      loginError = error.userFacingMessage(fallback: "Sign in isn't available right now. Please try again shortly.")
       state = .onboarding
     }
   }

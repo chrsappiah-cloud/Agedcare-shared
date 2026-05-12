@@ -72,6 +72,14 @@ final class ICloudBackupStore {
     load([AudioMonitorEvent].self, forKey: "ai-events.\(facilityId)")
   }
 
+  func saveIncidentRecordings(_ recordings: [IncidentRecording]) {
+    save(recordings, forKey: "incident-recordings")
+  }
+
+  func loadIncidentRecordings() -> [IncidentRecording]? {
+    load([IncidentRecording].self, forKey: "incident-recordings")
+  }
+
   private func save<T: Codable>(_ value: T, forKey key: String) {
     guard let data = try? encoder.encode(value) else { return }
     defaults.set(data, forKey: key)

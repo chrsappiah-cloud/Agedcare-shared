@@ -96,7 +96,7 @@ final class HandoffService: NSObject, ObservableObject {
       ])
       lastErrorMessage = nil
     } catch {
-      lastErrorMessage = error.localizedDescription
+      lastErrorMessage = error.userFacingMessage(fallback: "Staff requests are temporarily unavailable. Please try again shortly.")
     }
   }
 
@@ -108,7 +108,7 @@ final class HandoffService: NSObject, ObservableObject {
       _ = try await callRPC("resolve_handoff_request", body: ["p_alert_id": activeTransferToken ?? ""])
       lastErrorMessage = nil
     } catch {
-      lastErrorMessage = error.localizedDescription
+      lastErrorMessage = error.userFacingMessage(fallback: "Staff handoff updates are temporarily unavailable. Please try again shortly.")
     }
     clearHandoff()
     handoffCallback?(action)
@@ -122,7 +122,7 @@ final class HandoffService: NSObject, ObservableObject {
       }
       lastErrorMessage = nil
     } catch {
-      lastErrorMessage = error.localizedDescription
+      lastErrorMessage = error.userFacingMessage(fallback: "Staff requests are temporarily unavailable. Please try again shortly.")
     }
   }
 

@@ -42,4 +42,41 @@ public final class CloudKitService {
     }
   }
 }
+
+extension CloudKitService {
+  @discardableResult
+  func saveIncidentRecording(_ incident: IncidentRecording) async throws -> String {
+    let recordName = incident.cloudKitRecordName ?? "incident-\(incident.id.uuidString)"
+    let record = CKRecord(recordType: "AgedCareIncidentMedia", recordID: CKRecord.ID(recordName: recordName))
+    record["incidentId"] = incident.id.uuidString
+    record["facilityId"] = incident.facilityId?.uuidString
+    record["residentId"] = incident.residentId?.uuidString
+    record["type"] = incident.type
+    record["recordedAt"] = incident.timestamp
+    record["durationSeconds"] = incident.duration as CKRecordValue
+    record["hasPreIncidentFootage"] = incident.hasPreIncidentFootage as CKRecordValue
+    record["syncStatus"] = incident.resolvedSyncStatus.rawValue
+    record["summary"] = incident.backendSummary
+    record["analysisId"] = incident.backendAnalysisID
+    record["externalMediaURL"] = incident.backendMediaURL?.absoluteString
+    record["localFilename"] = incident.fileURL.lastPathComponent
+    record["snapshotFilename"] = incident.snapshotURL?.lastPathComponent
+    if let location = incident.locationSnapshot {
+      record["locationName"] = location.locationName
+      record["latitude"] = location.latitude as CKRecordValue?
+      record["longitude"] = location.longitude as CKRecordValue?
+      record["movementSummary"] = location.movementSummary
+      record["roomTemperature"] = location.roomTemperatureCelsius as CKRecordValue?
+    }
+    if FileManager.default.fileExists(atPath: incident.fileURL.path) {
+      record["videoAsset"] = CKAsset(fileURL: incident.fileURL)
+    }
+    if let snapshotURL = incident.snapshotURL,
+       FileManager.default.fileExists(atPath: snapshotURL.path) {
+      record["snapshotAsset"] = CKAsset(fileURL: snapshotURL)
+    }
+    _ = try await save(record, in: privateDB)
+    return recordName
+  }
+}
 #endif
