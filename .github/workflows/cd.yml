@@ -110,11 +110,14 @@ jobs:
             -o "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
 
       - name: Install App Store provisioning profile
-        if: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 != '' }}
         env:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
+          if [ -z "${BUILD_PROVISION_PROFILE_BASE64:-}" ]; then
+            echo "No BUILD_PROVISION_PROFILE_BASE64 secret configured; skipping profile install."
+            exit 0
+          fi
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode \
             -o "$RUNNER_TEMP/Agedcare-shared.mobileprovision"
