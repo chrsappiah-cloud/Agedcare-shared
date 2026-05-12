@@ -393,6 +393,12 @@ struct AppHostTests {
     @Test func residentDemoFacilityAvailable() {
         #expect(AppHost.defaultResidentDemoFacilityID != nil)
     }
+
+    @Test func previewAccessRemainsVisibleInTestContext() {
+        #expect(AppHost.previewAccessEnabled)
+        #expect(AppHost.visibleTestingAccessProfiles.count == AppHost.testingAccessProfiles.count)
+        #expect(AppHost.visibleDemoAccessProfiles.count == AppHost.demoAccessProfiles.count)
+    }
 }
 
 @Suite("Resident Demo Store Tests")

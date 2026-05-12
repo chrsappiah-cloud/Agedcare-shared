@@ -96,7 +96,7 @@ final class BackendHealthService: ObservableObject {
     }
 
     var configuredDemoProfiles: [DemoAccessProfile] {
-        AppHost.demoAccessProfiles
+        AppHost.visibleDemoAccessProfiles
     }
 
     var isDemoAccessReady: Bool {
@@ -260,10 +260,11 @@ final class BackendHealthService: ObservableObject {
     }
 
     private func validateDemoProfiles(authReady: Bool, databaseReady: Bool) async -> [DemoAccessProfile] {
+        guard AppHost.previewAccessEnabled else { return [] }
         guard authReady, databaseReady else { return [] }
 
         var liveProfiles = [DemoAccessProfile]()
-        for profile in AppHost.demoAccessProfiles where await isDemoProfileLive(profile) {
+        for profile in AppHost.visibleDemoAccessProfiles where await isDemoProfileLive(profile) {
             liveProfiles.append(profile)
         }
         return liveProfiles
@@ -325,6 +326,7 @@ final class BackendHealthService: ObservableObject {
         middlewareReady: Bool,
         liveProfiles: [DemoAccessProfile]
     ) -> String {
+        guard AppHost.previewAccessEnabled else { return "Preview access hidden in this release" }
         guard authReady else { return "Preparing preview access" }
         guard databaseReady else { return "Preparing preview access" }
         guard !liveProfiles.isEmpty else { return "Preview access unavailable" }

@@ -6,6 +6,14 @@ struct LoginView: View {
   @State private var email = ""
   @State private var password = ""
 
+  private var testingProfiles: [TestingAccessProfile] {
+    AppHost.visibleTestingAccessProfiles
+  }
+
+  private var showPreviewSections: Bool {
+    !testingProfiles.isEmpty || !backendHealth.configuredDemoProfiles.isEmpty
+  }
+
   var body: some View {
     VStack(spacing: 24) {
       Spacer()
@@ -64,51 +72,57 @@ struct LoginView: View {
         .accessibilityHint("Signs you in with your email and password")
         .accessibilityIdentifier("sign_in_button")
 
-        Text("Use your assigned care account, or continue with the testing programme below.")
+        Text(showPreviewSections
+          ? "Use your assigned care account, or continue with the testing programme below."
+          : "Use your assigned care account to continue.")
           .font(.caption2)
           .foregroundColor(AppTheme.textSecondary)
       }
 
-      Text("Testing Programme Access")
-        .font(.subheadline.bold())
-        .foregroundColor(AppTheme.darkChocolateLight)
-        .padding(.top, 8)
-        .accessibilityAddTraits(.isHeader)
+      if !testingProfiles.isEmpty {
+        Text("Testing Programme Access")
+          .font(.subheadline.bold())
+          .foregroundColor(AppTheme.darkChocolateLight)
+          .padding(.top, 8)
+          .accessibilityAddTraits(.isHeader)
 
-      VStack(spacing: 10) {
-        Text("Creator, administrator, and tester cohorts are mapped to Starter, Care Pro, and Care Team access during preview review.")
-          .font(.caption)
-          .foregroundColor(AppTheme.textSecondary)
-          .multilineTextAlignment(.center)
+        VStack(spacing: 10) {
+          Text("Creator, administrator, and tester cohorts are mapped to Starter, Care Pro, and Care Team access during preview review.")
+            .font(.caption)
+            .foregroundColor(AppTheme.textSecondary)
+            .multilineTextAlignment(.center)
 
-        ForEach(AppHost.testingAccessProfiles) { profile in
-          TestingAccessButton(profile: profile, session: session)
+          ForEach(testingProfiles) { profile in
+            TestingAccessButton(profile: profile, session: session)
+          }
         }
+        .accessibilityLabel("Subscription testing access")
       }
-      .accessibilityLabel("Subscription testing access")
 
-      Text("Preview Access")
-        .font(.subheadline.bold())
-        .foregroundColor(AppTheme.darkChocolateLight)
-        .padding(.top, 8)
-        .accessibilityAddTraits(.isHeader)
+      if !backendHealth.configuredDemoProfiles.isEmpty {
+        Text("Preview Access")
+          .font(.subheadline.bold())
+          .foregroundColor(AppTheme.darkChocolateLight)
+          .padding(.top, 8)
+          .accessibilityAddTraits(.isHeader)
 
-      VStack(spacing: 10) {
-        Text(backendHealth.demoAccessStatus)
-          .font(.caption)
-          .foregroundColor(backendHealth.isDemoAccessReady ? AppTheme.emeraldGreen : AppTheme.warning)
-          .multilineTextAlignment(.center)
+        VStack(spacing: 10) {
+          Text(backendHealth.demoAccessStatus)
+            .font(.caption)
+            .foregroundColor(backendHealth.isDemoAccessReady ? AppTheme.emeraldGreen : AppTheme.warning)
+            .multilineTextAlignment(.center)
 
-        Text("Preview staff sign-in becomes available automatically when access checks are complete.")
-          .font(.caption2)
-          .foregroundColor(AppTheme.textSecondary)
-          .multilineTextAlignment(.center)
+          Text("Preview staff sign-in becomes available automatically when access checks are complete.")
+            .font(.caption2)
+            .foregroundColor(AppTheme.textSecondary)
+            .multilineTextAlignment(.center)
 
-        ForEach(backendHealth.configuredDemoProfiles) { profile in
-          DemoButton(profile: profile, session: session, isEnabled: backendHealth.isDemoAccessReady)
+          ForEach(backendHealth.configuredDemoProfiles) { profile in
+            DemoButton(profile: profile, session: session, isEnabled: backendHealth.isDemoAccessReady)
+          }
         }
+        .accessibilityLabel("Demo accounts")
       }
-      .accessibilityLabel("Demo accounts")
 
       Button(action: { session.state = .onboarding }) {
         Text("Back")

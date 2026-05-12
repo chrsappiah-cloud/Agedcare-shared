@@ -169,6 +169,31 @@ enum AppHost {
     defaultTestingAccessProfiles
   }
 
+  static var previewAccessEnabled: Bool {
+    if let override = configuredPreviewAccessOverride {
+      return override
+    }
+    #if DEBUG
+    return true
+    #else
+    if environment["XCTestConfigurationFilePath"] != nil {
+      return true
+    }
+    guard let receiptURL = Bundle.main.appStoreReceiptURL else {
+      return true
+    }
+    return receiptURL.lastPathComponent == "sandboxReceipt"
+    #endif
+  }
+
+  static var visibleDemoAccessProfiles: [DemoAccessProfile] {
+    previewAccessEnabled ? defaultDemoProfiles : []
+  }
+
+  static var visibleTestingAccessProfiles: [TestingAccessProfile] {
+    previewAccessEnabled ? defaultTestingAccessProfiles : []
+  }
+
   static var defaultResidentDemoFacilityID: UUID? {
     defaultTestingAccessProfiles.first(where: { $0.accessKind == .tester })?.facilityId
       ?? defaultTestingAccessProfiles.first?.facilityId
@@ -201,6 +226,13 @@ enum AppHost {
     )
   }
 
+  private static var configuredPreviewAccessOverride: Bool? {
+    boolValue(
+      environment["PREVIEW_ACCESS_ENABLED"]
+        ?? value(forInfoKeys: ["PreviewAccessEnabled", "PREVIEW_ACCESS_ENABLED"])
+    )
+  }
+
   private static func value(forInfoKeys keys: [String]) -> String? {
     for key in keys {
       if let value = bundledInfo[key] as? String, let trimmed = trimmedString(value) {
@@ -219,5 +251,17 @@ enum AppHost {
     guard let value else { return nil }
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
+  }
+
+  private static func boolValue(_ value: String?) -> Bool? {
+    guard let normalized = trimmedString(value)?.lowercased() else { return nil }
+    switch normalized {
+    case "1", "true", "yes", "on":
+      return true
+    case "0", "false", "no", "off":
+      return false
+    default:
+      return nil
+    }
   }
 }
