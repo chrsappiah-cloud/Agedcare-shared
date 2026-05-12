@@ -12,7 +12,7 @@
 	<key>AWSAPIBaseURL</key>
 	<string></string>
 	<key>BackendBaseURL</key>
-	<string>https://agedcare-api.chrsappiah.cloud</string>
+	<string>https://izpwlqvuhdudzneqtecd.supabase.co</string>
 	<key>BackendProvider</key>
 	<string>primary</string>
 	<key>CloudflareAPIBaseURL</key>
@@ -50,7 +50,7 @@
 		<string>_agedcare._tcp</string>
 	</array>
 	<key>SupabaseAnonKey</key>
-	<string></string>
+	<string>sb_publishable_Y9mQj4l9v8cgCOKc5QfgpA_IwCqd89j</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
