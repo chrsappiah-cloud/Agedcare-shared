@@ -87,7 +87,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     needs: build-and-test
-    continue-on-error: true
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
