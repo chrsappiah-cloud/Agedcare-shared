@@ -618,7 +618,9 @@ final class AVCaptureService: NSObject, ObservableObject {
             at: recording.fileURL,
             facilityId: facilityId.uuidString,
             residentId: recording.residentId?.uuidString,
-            incidentType: recording.type
+            incidentType: recording.type,
+            snapshotURL: recording.snapshotURL,
+            locationSnapshot: recording.locationSnapshot
         )
         let cloudKitCandidate = updatedRecording
         async let cloudKitTask = syncIncidentToCloudKit(cloudKitCandidate)

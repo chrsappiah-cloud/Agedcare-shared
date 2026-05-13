@@ -700,6 +700,13 @@ struct BackendHealthProbeTests {
         #expect(incident.movementSummary.contains("Moving"))
     }
 
+    @Test func incidentLocationSnapshotMovementSummaryHandlesNoMovementEdge() {
+        let incident = IncidentLocationSnapshot(weatherSnapshot: WeatherSnapshot())
+
+        #expect(incident.movementSummary == "Movement not yet established")
+        #expect(incident.coordinateDescription == "Location unavailable")
+    }
+
     @Test func weatherSnapshotBackendMetricsIncludeLocationWeatherAndMovement() {
         var snap = WeatherSnapshot()
         snap.outdoorTemperature = 18.5
@@ -776,6 +783,123 @@ struct BackendHealthProbeTests {
         snapshot.weatherSourceName = "WeatherKit live"
 
         #expect(snapshot.weatherSourceDescription() == "WeatherKit live")
+    }
+
+    @Test func weatherSnapshotPrefersExplicitLocationSourceDescription() {
+        var snapshot = WeatherSnapshot()
+        snapshot.locationSourceName = "OpenStreetMap reverse geocode backup"
+
+        #expect(snapshot.locationSourceDescription() == "OpenStreetMap reverse geocode backup")
+    }
+
+    @Test func weatherSnapshotFallsBackToDefaultLocationSourceDescription() {
+        let snapshot = WeatherSnapshot()
+
+        #expect(snapshot.locationSourceDescription() == "MapKit reverse geocode")
+    }
+
+    @Test func openMeteoConditionMapsThunderstormCodes() {
+        let condition = LocationWeatherService.openMeteoCondition(for: 95)
+
+        #expect(condition.description == "Thunderstorm")
+        #expect(condition.symbolName == "cloud.bolt.rain.fill")
+    }
+
+    @Test func openMeteoConditionMapsClearSkyCodes() {
+        let condition = LocationWeatherService.openMeteoCondition(for: 0)
+
+        #expect(condition.description == "Clear")
+        #expect(condition.symbolName == "sun.max.fill")
+    }
+
+    @Test func openMeteoConditionMapsUnknownCodesToLocalConditions() {
+        let condition = LocationWeatherService.openMeteoCondition(for: 999)
+
+        #expect(condition.description == "Local conditions")
+        #expect(condition.symbolName == "cloud.sun.fill")
+    }
+
+    @Test func incidentRecordingStorageRouteSummaryIncludesAllAvailableRoutes() {
+        let recording = IncidentRecording(
+            id: UUID(),
+            type: "fall",
+            timestamp: Date(),
+            fileURL: URL(fileURLWithPath: "/tmp/incident.mov"),
+            residentId: UUID(),
+            duration: 30,
+            hasPreIncidentFootage: true,
+            facilityId: UUID(),
+            snapshotURL: nil,
+            locationSnapshot: nil,
+            syncStatus: .pendingUpload,
+            cloudKitRecordName: "cloudkit-123",
+            supabaseIncidentID: UUID(),
+            lastSyncedAt: Date()
+        )
+
+        var enriched = recording
+        enriched.backendMediaURL = URL(string: "https://example.com/video.mov")
+
+        #expect(enriched.storageRouteSummary == "Care database synced • iCloud backup ready • Secure video link ready")
+    }
+
+    @Test func incidentVideoEnhancementPromptIncludesIncidentContext() {
+        var weather = WeatherSnapshot()
+        weather.locationName = "Resident Wing A"
+        weather.coordinate = .init(latitude: -37.8136, longitude: 144.9631)
+        weather.totalDistanceMeters = 12
+        weather.actualRoomTemperature = 22.8
+        weather.roomTemperatureSource = "Home sensor"
+        let location = IncidentLocationSnapshot(weatherSnapshot: weather)
+
+        let prompt = AIMonitoringService.incidentVideoEnhancementPrompt(
+            incidentType: "fall_detected",
+            locationSnapshot: location,
+            includesSnapshot: true
+        )
+
+        #expect(prompt.contains("fall detected"))
+        #expect(prompt.contains("Resident Wing A"))
+        #expect(prompt.contains("Snapshot frame attached: yes"))
+        #expect(prompt.contains("Room temperature: 22.8 C"))
+    }
+
+    @Test func mergedAnalysisAddsExternalInsightsWithoutDuplicates() {
+        let primary = MediaAnalysisResult(
+            id: "analysis-1",
+            facility_id: "facility-1",
+            resident_id: "resident-1",
+            resident_name: nil,
+            media_url: "https://example.com/video.mov",
+            media_type: "video",
+            analysis_status: "completed",
+            summary: "Primary summary",
+            confidence: 0.55,
+            insights: ["Fall risk observed"],
+            detected_keywords: ["fall"],
+            sentiment: nil,
+            safety_flags: [MediaAnalysisResult.SafetyFlag(type: "hazard", detail: "Loose rug")],
+            transcribed_text: nil,
+            created_at: "2026-05-13T00:00:00Z",
+            completed_at: "2026-05-13T00:01:00Z"
+        )
+
+        let merged = AIMonitoringService.mergeAnalysis(
+            primary: primary,
+            summary: "Enhanced summary",
+            confidence: 0.82,
+            insights: ["Loose rug near resident", "Fall risk observed"],
+            detectedKeywords: ["rug", "fall"],
+            safetyFlags: [MediaAnalysisResult.SafetyFlag(type: "hazard", detail: "Loose rug")],
+            providerName: "OpenAI-compatible open-source model"
+        )
+
+        #expect(merged.summary == "Enhanced summary")
+        #expect(merged.confidence == 0.82)
+        #expect(merged.insights.contains("Enhanced via OpenAI-compatible open-source model"))
+        #expect(merged.insights.filter { $0 == "Fall risk observed" }.count == 1)
+        #expect(merged.detected_keywords.filter { $0 == "fall" }.count == 1)
+        #expect(merged.safety_flags.count == 1)
     }
 
     /// The Vercel marketing site (also linked from the app footer) must respond.

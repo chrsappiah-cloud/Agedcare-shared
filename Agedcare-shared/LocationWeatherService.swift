@@ -28,6 +28,7 @@ struct WeatherSnapshot {
     var roomTemperatureLastUpdated: Date?
     var lastUpdated: Date?
     var weatherSourceName: String = ""
+    var locationSourceName: String = ""
 
     var estimatedRoomTemperature: Double? {
         guard let t = outdoorTemperature else { return nil }
@@ -126,6 +127,13 @@ struct WeatherSnapshot {
         #endif
     }
 
+    func locationSourceDescription() -> String {
+        if !locationSourceName.isEmpty {
+            return locationSourceName
+        }
+        return "MapKit reverse geocode"
+    }
+
     func backendMetrics() -> [(metric: String, value: Double)] {
         var metrics: [(metric: String, value: Double)] = []
 
@@ -188,6 +196,41 @@ struct WeatherSnapshot {
 
 @MainActor
 final class LocationWeatherService: NSObject, ObservableObject, CLLocationManagerDelegate {
+    struct ResolvedWeatherReading {
+        let outdoorTemperature: Double
+        let feelsLike: Double?
+        let humidity: Double?
+        let conditionDescription: String
+        let conditionSymbol: String
+        let sourceName: String
+    }
+
+    private struct OpenMeteoForecastResponse: Decodable {
+        struct Current: Decodable {
+            let temperature2m: Double?
+            let relativeHumidity2m: Double?
+            let apparentTemperature: Double?
+            let weatherCode: Int?
+        }
+
+        let current: Current?
+    }
+
+    private struct OpenStreetMapReverseResponse: Decodable {
+        struct Address: Decodable {
+            let city: String?
+            let town: String?
+            let village: String?
+            let suburb: String?
+            let municipality: String?
+            let state: String?
+            let country: String?
+        }
+
+        let name: String?
+        let address: Address?
+    }
+
     enum BackendSyncState: Equatable {
         case idle
         case syncing
@@ -210,6 +253,8 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
     private let geocodeRefreshInterval: TimeInterval = 180
     private let geocodeRefreshDistanceMeters: CLLocationDistance = 25
     private let locationRefreshInterval: TimeInterval = 30
+    private let session: URLSession
+    private let jsonDecoder: JSONDecoder
     private var lastLocation: CLLocation?
     private var lastWeatherFetchLocation: CLLocation?
     private var lastWeatherFetchDate: Date?
@@ -219,6 +264,9 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
     private var cancellables: Set<AnyCancellable> = []
 
     override init() {
+        self.session = .shared
+        self.jsonDecoder = JSONDecoder()
+        self.jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
@@ -381,14 +429,25 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
             let mapItems = try await reverseGeocode(location)
             if let mapItem = mapItems.first {
                 snapshot.locationName = formattedLocationName(from: mapItem)
+                snapshot.locationSourceName = "MapKit reverse geocode"
             } else {
                 snapshot.locationName = snapshot.formattedCoordinates()
+                snapshot.locationSourceName = "Map coordinates only"
             }
             lastGeocodedLocation = location
             lastGeocodeDate = Date()
         } catch {
-            if snapshot.locationName.isEmpty {
-                snapshot.locationName = snapshot.formattedCoordinates()
+            do {
+                let openLocation = try await reverseGeocodeWithOpenStreetMap(location)
+                snapshot.locationName = formattedLocationName(from: openLocation)
+                snapshot.locationSourceName = "OpenStreetMap reverse geocode backup"
+                lastGeocodedLocation = location
+                lastGeocodeDate = Date()
+            } catch {
+                if snapshot.locationName.isEmpty {
+                    snapshot.locationName = snapshot.formattedCoordinates()
+                }
+                snapshot.locationSourceName = "Map coordinates only"
             }
         }
     }
@@ -409,6 +468,30 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
             return []
         }
         return try await request.mapItems
+    }
+
+    private func reverseGeocodeWithOpenStreetMap(_ location: CLLocation) async throws -> OpenStreetMapReverseResponse {
+        var components = URLComponents(string: "https://nominatim.openstreetmap.org/reverse")
+        components?.queryItems = [
+            URLQueryItem(name: "format", value: "jsonv2"),
+            URLQueryItem(name: "lat", value: String(location.coordinate.latitude)),
+            URLQueryItem(name: "lon", value: String(location.coordinate.longitude)),
+            URLQueryItem(name: "zoom", value: "16"),
+            URLQueryItem(name: "addressdetails", value: "1"),
+        ]
+        guard let url = components?.url else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.setValue("Agedcare-shared/1.0 (\(WCSMarketingConfig.supportEmail))", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try jsonDecoder.decode(OpenStreetMapReverseResponse.self, from: data)
     }
 
     private func formattedLocationName(from mapItem: MKMapItem) -> String {
@@ -436,43 +519,151 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         return uniqueParts.prefix(2).joined(separator: ", ")
     }
 
+    private func formattedLocationName(from response: OpenStreetMapReverseResponse) -> String {
+        let candidates: [String?] = [
+            response.name,
+            response.address?.suburb,
+            response.address?.city,
+            response.address?.town,
+            response.address?.village,
+            response.address?.municipality,
+            response.address?.state,
+            response.address?.country,
+        ]
+
+        var parts = [String]()
+        for candidate in candidates {
+            guard let value = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { continue }
+            parts.append(value)
+        }
+
+        if parts.isEmpty {
+            return snapshot.formattedCoordinates()
+        }
+
+        var uniqueParts = [String]()
+        for part in parts where !uniqueParts.contains(part) {
+            uniqueParts.append(part)
+        }
+        return uniqueParts.prefix(2).joined(separator: ", ")
+    }
+
     private func fetchWeather(for location: CLLocation) async {
         isLoading = true
         error = nil
 
-        #if canImport(WeatherKit)
         do {
-            let weather = try await WeatherService.shared.weather(for: location)
-            let current = weather.currentWeather
-            snapshot.outdoorTemperature = current.temperature.converted(to: .celsius).value
-            snapshot.feelsLike = current.apparentTemperature.converted(to: .celsius).value
-            snapshot.humidity = current.humidity
-            snapshot.conditionDescription = current.condition.description
-            snapshot.conditionSymbol = current.symbolName
-            snapshot.weatherSourceName = "WeatherKit live"
-            let updatedAt = Date()
-            snapshot.weatherLastUpdated = updatedAt
-            snapshot.lastUpdated = updatedAt
-            lastWeatherFetchDate = updatedAt
-            lastWeatherFetchLocation = location
+            let reading = try await resolveWeather(for: location)
+            applyWeather(reading, for: location)
         } catch {
             self.error = "Weather unavailable right now. Showing the latest available values."
         }
+
+        isLoading = false
+    }
+
+    private func resolveWeather(for location: CLLocation) async throws -> ResolvedWeatherReading {
+        #if canImport(WeatherKit)
+        do {
+            return try await fetchWeatherKitReading(for: location)
+        } catch {
+            return try await fetchOpenMeteoReading(for: location)
+        }
         #else
-        snapshot.outdoorTemperature = 22.0
-        snapshot.feelsLike = 21.0
-        snapshot.humidity = 0.55
-        snapshot.conditionDescription = "Partly Cloudy"
-        snapshot.conditionSymbol = "cloud.sun.fill"
-        snapshot.weatherSourceName = "Local weather fallback"
+        return try await fetchOpenMeteoReading(for: location)
+        #endif
+    }
+
+    #if canImport(WeatherKit)
+    private func fetchWeatherKitReading(for location: CLLocation) async throws -> ResolvedWeatherReading {
+        let weather = try await WeatherService.shared.weather(for: location)
+        let current = weather.currentWeather
+        return ResolvedWeatherReading(
+            outdoorTemperature: current.temperature.converted(to: .celsius).value,
+            feelsLike: current.apparentTemperature.converted(to: .celsius).value,
+            humidity: current.humidity,
+            conditionDescription: current.condition.description,
+            conditionSymbol: current.symbolName,
+            sourceName: "WeatherKit live"
+        )
+    }
+    #endif
+
+    private func fetchOpenMeteoReading(for location: CLLocation) async throws -> ResolvedWeatherReading {
+        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")
+        components?.queryItems = [
+            URLQueryItem(name: "latitude", value: String(location.coordinate.latitude)),
+            URLQueryItem(name: "longitude", value: String(location.coordinate.longitude)),
+            URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code"),
+            URLQueryItem(name: "timezone", value: "auto"),
+            URLQueryItem(name: "forecast_days", value: "1"),
+        ]
+        guard let url = components?.url else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let forecast = try jsonDecoder.decode(OpenMeteoForecastResponse.self, from: data)
+        guard let current = forecast.current,
+              let outdoorTemperature = current.temperature2m else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        let condition = Self.openMeteoCondition(for: current.weatherCode ?? 0)
+        return ResolvedWeatherReading(
+            outdoorTemperature: outdoorTemperature,
+            feelsLike: current.apparentTemperature,
+            humidity: current.relativeHumidity2m.map { $0 / 100.0 },
+            conditionDescription: condition.description,
+            conditionSymbol: condition.symbolName,
+            sourceName: "Open-Meteo meteorological backup"
+        )
+    }
+
+    private func applyWeather(_ reading: ResolvedWeatherReading, for location: CLLocation) {
+        snapshot.outdoorTemperature = reading.outdoorTemperature
+        snapshot.feelsLike = reading.feelsLike
+        snapshot.humidity = reading.humidity
+        snapshot.conditionDescription = reading.conditionDescription
+        snapshot.conditionSymbol = reading.conditionSymbol
+        snapshot.weatherSourceName = reading.sourceName
         let updatedAt = Date()
         snapshot.weatherLastUpdated = updatedAt
         snapshot.lastUpdated = updatedAt
         lastWeatherFetchDate = updatedAt
         lastWeatherFetchLocation = location
-        #endif
+    }
 
-        isLoading = false
+    nonisolated static func openMeteoCondition(for code: Int) -> (description: String, symbolName: String) {
+        switch code {
+        case 0:
+            return ("Clear", "sun.max.fill")
+        case 1, 2:
+            return ("Partly cloudy", "cloud.sun.fill")
+        case 3:
+            return ("Overcast", "cloud.fill")
+        case 45, 48:
+            return ("Fog", "cloud.fog.fill")
+        case 51, 53, 55, 56, 57:
+            return ("Drizzle", "cloud.drizzle.fill")
+        case 61, 63, 65, 66, 67:
+            return ("Rain", "cloud.rain.fill")
+        case 71, 73, 75, 77, 85, 86:
+            return ("Snow", "cloud.snow.fill")
+        case 80, 81, 82:
+            return ("Showers", "cloud.heavyrain.fill")
+        case 95, 96, 99:
+            return ("Thunderstorm", "cloud.bolt.rain.fill")
+        default:
+            return ("Local conditions", "cloud.sun.fill")
+        }
     }
 
     private func startRefreshTimerIfNeeded() {

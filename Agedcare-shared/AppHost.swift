@@ -157,6 +157,45 @@ enum AppHost {
     awsBaseURL != nil
   }
 
+  static var externalAIChatCompletionsURL: URL? {
+    guard let configuredURL = resolvedURL(
+      environment["EXTERNAL_AI_BASE_URL"]
+        ?? value(forInfoKeys: ["ExternalAIBaseURL", "EXTERNAL_AI_BASE_URL"])
+    ) else {
+      return nil
+    }
+
+    let normalizedPath = configuredURL.path.lowercased()
+    if normalizedPath.hasSuffix("/chat/completions") {
+      return configuredURL
+    }
+    if normalizedPath.hasSuffix("/v1") {
+      return configuredURL.appendingPathComponent("chat/completions")
+    }
+    return configuredURL.appendingPathComponent("v1/chat/completions")
+  }
+
+  static var externalAIAPIKey: String? {
+    trimmedString(
+      environment["EXTERNAL_AI_API_KEY"]
+        ?? value(forInfoKeys: ["ExternalAIAPIKey", "EXTERNAL_AI_API_KEY"])
+    )
+  }
+
+  static var externalAIModel: String? {
+    trimmedString(
+      environment["EXTERNAL_AI_MODEL"]
+        ?? value(forInfoKeys: ["ExternalAIModel", "EXTERNAL_AI_MODEL"])
+    ) ?? (externalAIChatCompletionsURL == nil ? nil : "llava:latest")
+  }
+
+  static var externalAIProviderName: String {
+    trimmedString(
+      environment["EXTERNAL_AI_PROVIDER_NAME"]
+        ?? value(forInfoKeys: ["ExternalAIProviderName", "EXTERNAL_AI_PROVIDER_NAME"])
+    ) ?? "OpenAI-compatible open-source model"
+  }
+
   static var resolvedCloudflareBaseURL: URL? {
     cloudflareBaseURL
   }

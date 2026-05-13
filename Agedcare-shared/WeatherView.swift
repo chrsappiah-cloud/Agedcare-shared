@@ -209,6 +209,11 @@ struct WeatherCardView: View {
                 status: service.snapshot.coordinate == nil ? .pending : .ok
             )
             SystemStatusRow(
+                title: "Map & geocoding",
+                detail: service.snapshot.locationSourceDescription(),
+                status: service.snapshot.coordinate == nil ? .pending : .ok
+            )
+            SystemStatusRow(
                 title: "Backend sync",
                 detail: backendSyncDetail,
                 status: backendSyncIndicator
@@ -226,6 +231,9 @@ struct WeatherCardView: View {
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textSecondary)
             }
+            Text(service.snapshot.locationSourceDescription())
+                .font(.caption2)
+                .foregroundStyle(AppTheme.textSecondary)
             if !service.snapshot.hasActualRoomTemperature {
                 Text("Add a HomeKit temperature sensor or thermostat to show actual room temperature.")
                     .font(.caption2)
