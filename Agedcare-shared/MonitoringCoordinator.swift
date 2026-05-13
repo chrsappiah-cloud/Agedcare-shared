@@ -204,6 +204,8 @@ final class MonitoringCoordinator: ObservableObject {
       return
     }
 
+    LocationWeatherService.shared.markBackendSyncStarted()
+
     do {
       for metric in metrics {
         try await residentsRepository.recordVitalEvent(
@@ -216,7 +218,9 @@ final class MonitoringCoordinator: ObservableObject {
       }
       lastWeatherSyncSignature = signature
       lastWeatherSyncDate = timestamp
+      LocationWeatherService.shared.markBackendSyncSucceeded(at: timestamp)
     } catch {
+      LocationWeatherService.shared.markBackendSyncFailed("Backend sync delayed")
       print("[MonitoringCoordinator] Failed to record weather/location metrics: \(error)")
     }
   }

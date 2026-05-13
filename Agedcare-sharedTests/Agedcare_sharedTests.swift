@@ -760,6 +760,13 @@ struct BackendHealthProbeTests {
         #expect(!summary.contains("estimated"))
     }
 
+    @Test func weatherSnapshotPrefersExplicitWeatherSourceDescription() {
+        var snapshot = WeatherSnapshot()
+        snapshot.weatherSourceName = "WeatherKit live"
+
+        #expect(snapshot.weatherSourceDescription() == "WeatherKit live")
+    }
+
     /// The Vercel marketing site (also linked from the app footer) must respond.
     /// Tolerates offline test environments by recording rather than failing.
     @Test func vercelMarketingSiteReachable() async throws {

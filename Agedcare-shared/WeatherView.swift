@@ -3,11 +3,30 @@ import MapKit
 
 // MARK: - Weather card shown on ResidentHomeView
 struct WeatherCardView: View {
+    private enum WeatherSectionTab: String, CaseIterable, Identifiable {
+        case overview
+        case location
+        case systems
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .overview: return "Overview"
+            case .location: return "Location"
+            case .systems: return "Systems"
+            }
+        }
+    }
+
     @StateObject private var service = LocationWeatherService.shared
+    @State private var selectedTab: WeatherSectionTab = .overview
+    @State private var mapCameraPosition: MapCameraPosition = .automatic
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             headerRow
+            tabPicker
             if service.isLoading && !hasSnapshotContent {
                 ProgressView("Fetching weather…")
                     .frame(maxWidth: .infinity)
@@ -17,10 +36,7 @@ struct WeatherCardView: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.danger)
                 }
-                residentMap
-                weatherGrid
-                movementGrid
-                roomTemperatureFootnote
+                tabContent
             }
         }
         .padding(16)
@@ -29,6 +45,9 @@ struct WeatherCardView: View {
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
         .onAppear { service.requestPermissionAndStart() }
         .onDisappear { service.stop() }
+        .onReceive(service.$snapshot) { _ in
+            syncMapCamera()
+        }
     }
 
     private var headerRow: some View {
@@ -52,12 +71,36 @@ struct WeatherCardView: View {
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textSecondary)
             }
-            Button { service.requestPermissionAndStart() } label: {
+            Button { service.refreshNow() } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.emeraldGreen)
             }
             .accessibilityLabel("Refresh weather")
+        }
+    }
+
+    private var tabPicker: some View {
+        Picker("Weather sections", selection: $selectedTab) {
+            ForEach(WeatherSectionTab.allCases) { tab in
+                Text(tab.title).tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("weather_section_tabs")
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .overview:
+            weatherGrid
+            roomTemperatureFootnote
+        case .location:
+            residentMap
+            movementGrid
+        case .systems:
+            systemsGrid
         }
     }
 
@@ -125,7 +168,7 @@ struct WeatherCardView: View {
     private var residentMap: some View {
         if let region = service.snapshot.mapRegion,
            let coordinate = service.snapshot.coordinate {
-            Map(position: .constant(.region(region))) {
+            Map(position: $mapCameraPosition, interactionModes: [.pan, .zoom]) {
                 Marker("Resident", coordinate: coordinate)
             }
             .frame(height: 160)
@@ -139,6 +182,34 @@ struct WeatherCardView: View {
                     .background(.black.opacity(0.5), in: Capsule())
                     .padding(10)
             }
+            .onAppear {
+                mapCameraPosition = .region(region)
+            }
+        }
+    }
+
+    private var systemsGrid: some View {
+        VStack(spacing: 10) {
+            SystemStatusRow(
+                title: "Weather source",
+                detail: service.snapshot.weatherSourceDescription(),
+                status: service.snapshot.weatherLastUpdated == nil ? .pending : .ok
+            )
+            SystemStatusRow(
+                title: "Room temperature",
+                detail: service.snapshot.roomTemperatureSourceDescription(),
+                status: service.snapshot.hasActualRoomTemperature ? .ok : .pending
+            )
+            SystemStatusRow(
+                title: "Location services",
+                detail: locationStatusDetail,
+                status: service.snapshot.coordinate == nil ? .pending : .ok
+            )
+            SystemStatusRow(
+                title: "Backend sync",
+                detail: backendSyncDetail,
+                status: backendSyncIndicator
+            )
         }
     }
 
@@ -167,6 +238,53 @@ struct WeatherCardView: View {
             || service.snapshot.roomTemperature != nil
             || !service.snapshot.locationName.isEmpty
     }
+
+    private var locationStatusDetail: String {
+        switch service.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            if let accuracy = service.snapshot.horizontalAccuracyMeters {
+                return "Live location, ±\(Int(accuracy.rounded())) m"
+            }
+            return "Live location ready"
+        case .notDetermined:
+            return "Waiting for permission"
+        case .denied, .restricted:
+            return "Permission required in Settings"
+        @unknown default:
+            return "Location status unknown"
+        }
+    }
+
+    private var backendSyncDetail: String {
+        switch service.backendSyncState {
+        case .idle:
+            return "Waiting for live monitoring"
+        case .syncing:
+            return "Sending weather and location metrics"
+        case .synced(let date):
+            return "Synced \(date.formatted(date: .omitted, time: .shortened))"
+        case .failed(let message):
+            return message
+        }
+    }
+
+    private var backendSyncIndicator: SystemStatusRow.Indicator {
+        switch service.backendSyncState {
+        case .idle:
+            return .pending
+        case .syncing:
+            return .active
+        case .synced:
+            return .ok
+        case .failed:
+            return .error
+        }
+    }
+
+    private func syncMapCamera() {
+        guard let region = service.snapshot.mapRegion else { return }
+        mapCameraPosition = .region(region)
+    }
 }
 
 // MARK: - Individual tile
@@ -193,6 +311,49 @@ private struct WeatherTileView: View {
         .padding(.vertical, 10)
         .background(AppTheme.background)
         .cornerRadius(10)
+    }
+}
+
+private struct SystemStatusRow: View {
+    enum Indicator {
+        case ok
+        case active
+        case pending
+        case error
+    }
+
+    let title: String
+    let detail: String
+    let status: Indicator
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 10, height: 10)
+                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(AppTheme.background)
+        .cornerRadius(12)
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .ok: return AppTheme.emeraldGreen
+        case .active: return .blue
+        case .pending: return AppTheme.warning
+        case .error: return AppTheme.emeraldRed
+        }
     }
 }
 

@@ -27,6 +27,7 @@ struct WeatherSnapshot {
     var weatherLastUpdated: Date?
     var roomTemperatureLastUpdated: Date?
     var lastUpdated: Date?
+    var weatherSourceName: String = ""
 
     var estimatedRoomTemperature: Double? {
         guard let t = outdoorTemperature else { return nil }
@@ -114,6 +115,17 @@ struct WeatherSnapshot {
         return parts.joined(separator: " • ")
     }
 
+    func weatherSourceDescription() -> String {
+        if !weatherSourceName.isEmpty {
+            return weatherSourceName
+        }
+        #if canImport(WeatherKit)
+        return "WeatherKit"
+        #else
+        return "Local weather fallback"
+        #endif
+    }
+
     func backendMetrics() -> [(metric: String, value: Double)] {
         var metrics: [(metric: String, value: Double)] = []
 
@@ -176,12 +188,20 @@ struct WeatherSnapshot {
 
 @MainActor
 final class LocationWeatherService: NSObject, ObservableObject, CLLocationManagerDelegate {
+    enum BackendSyncState: Equatable {
+        case idle
+        case syncing
+        case synced(Date)
+        case failed(String)
+    }
+
     static let shared = LocationWeatherService()
 
     @Published var snapshot = WeatherSnapshot()
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var isLoading = false
     @Published var error: String?
+    @Published private(set) var backendSyncState: BackendSyncState = .idle
 
     private let manager = CLLocationManager()
     private let roomTemperatureService = HomeRoomTemperatureService.shared
@@ -222,6 +242,7 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
     }
 
     func requestPermissionAndStart() {
+        error = nil
         roomTemperatureService.start()
         switch manager.authorizationStatus {
         case .notDetermined:
@@ -288,8 +309,20 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError err: Error) {
         Task { @MainActor in
-            self.error = err.localizedDescription
+            self.error = Self.userVisibleLocationError(err)
         }
+    }
+
+    func markBackendSyncStarted() {
+        backendSyncState = .syncing
+    }
+
+    func markBackendSyncSucceeded(at timestamp: Date) {
+        backendSyncState = .synced(timestamp)
+    }
+
+    func markBackendSyncFailed(_ message: String) {
+        backendSyncState = .failed(message)
     }
 
     private func process(location: CLLocation) async {
@@ -416,13 +449,14 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
             snapshot.humidity = current.humidity
             snapshot.conditionDescription = current.condition.description
             snapshot.conditionSymbol = current.symbolName
+            snapshot.weatherSourceName = "WeatherKit live"
             let updatedAt = Date()
             snapshot.weatherLastUpdated = updatedAt
             snapshot.lastUpdated = updatedAt
             lastWeatherFetchDate = updatedAt
             lastWeatherFetchLocation = location
         } catch {
-            self.error = "Weather unavailable: \(error.localizedDescription)"
+            self.error = "Weather unavailable right now. Showing the latest available values."
         }
         #else
         snapshot.outdoorTemperature = 22.0
@@ -430,6 +464,7 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         snapshot.humidity = 0.55
         snapshot.conditionDescription = "Partly Cloudy"
         snapshot.conditionSymbol = "cloud.sun.fill"
+        snapshot.weatherSourceName = "Local weather fallback"
         let updatedAt = Date()
         snapshot.weatherLastUpdated = updatedAt
         snapshot.lastUpdated = updatedAt
@@ -448,6 +483,23 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
                 self.roomTemperatureService.refreshNow()
                 self.manager.requestLocation()
             }
+        }
+    }
+
+    nonisolated private static func userVisibleLocationError(_ error: Error) -> String? {
+        guard let clError = error as? CLError else {
+            return error.localizedDescription
+        }
+
+        switch clError.code {
+        case .locationUnknown:
+            return nil
+        case .network:
+            return "Location is temporarily unavailable. Retrying automatically."
+        case .denied:
+            return "Location access denied. Enable it in Settings to map resident location and weather."
+        default:
+            return clError.localizedDescription
         }
     }
 }
