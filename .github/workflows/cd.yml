@@ -124,11 +124,6 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
-          if /usr/libexec/PlistBuddy -c "Print :signingStyle" ExportOptions.plist 2>/dev/null | grep -qi '^automatic$'; then
-            echo "Automatic signing enabled in ExportOptions.plist; skipping fixed provisioning profile install."
-            echo "installed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           if [ -z "${BUILD_PROVISION_PROFILE_BASE64:-}" ]; then
             echo "No BUILD_PROVISION_PROFILE_BASE64 secret configured; skipping profile install."
             echo "installed=false" >> "$GITHUB_OUTPUT"
@@ -140,11 +135,24 @@ jobs:
           security cms -D -i "$RUNNER_TEMP/Agedcare-shared.mobileprovision" > "$RUNNER_TEMP/Agedcare-shared-profile.plist"
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/Agedcare-shared-profile.plist")
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$RUNNER_TEMP/Agedcare-shared-profile.plist")
+          PROFILE_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$RUNNER_TEMP/Agedcare-shared-profile.plist" | sed -E 's/^[^.]+\.//')
+          PROFILE_HAS_DEVICES=$(/usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1 && echo "true" || echo "false")
+          PROFILE_GET_TASK_ALLOW=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:get-task-allow" "$RUNNER_TEMP/Agedcare-shared-profile.plist" 2>/dev/null || echo "false")
+          PROFILE_HAS_BETA=$(/usr/libexec/PlistBuddy -c "Print :ProvisionsAllDevices" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1 && echo "enterprise" || echo "standard")
           cp "$RUNNER_TEMP/Agedcare-shared.mobileprovision" \
             ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
           echo "installed=true" >> "$GITHUB_OUTPUT"
           echo "name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
           echo "uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+          echo "bundle_id=$PROFILE_BUNDLE_ID" >> "$GITHUB_OUTPUT"
+          echo "has_devices=$PROFILE_HAS_DEVICES" >> "$GITHUB_OUTPUT"
+          echo "get_task_allow=$PROFILE_GET_TASK_ALLOW" >> "$GITHUB_OUTPUT"
+          echo "distribution_kind=$PROFILE_HAS_BETA" >> "$GITHUB_OUTPUT"
+          if [ "$PROFILE_HAS_DEVICES" = "true" ] || [ "$PROFILE_GET_TASK_ALLOW" = "true" ]; then
+            echo "::warning::Installed provisioning profile '$PROFILE_NAME' appears to be a development/ad hoc profile and will not work for TestFlight export."
+          else
+            echo "✅ Installed provisioning profile '$PROFILE_NAME' for bundle '$PROFILE_BUNDLE_ID'"
+          fi
 
       - name: Install distribution certificate
         env:
@@ -187,6 +195,12 @@ jobs:
           test -d "$RUNNER_TEMP/$SCHEME.xcarchive"
 
       - name: Export IPA
+        env:
+          INSTALLED_PROFILE_NAME: ${{ steps.provisioning.outputs.name }}
+          INSTALLED_PROFILE_UUID: ${{ steps.provisioning.outputs.uuid }}
+          INSTALLED_PROFILE_BUNDLE_ID: ${{ steps.provisioning.outputs.bundle_id }}
+          INSTALLED_PROFILE_HAS_DEVICES: ${{ steps.provisioning.outputs.has_devices }}
+          INSTALLED_PROFILE_GET_TASK_ALLOW: ${{ steps.provisioning.outputs.get_task_allow }}
         run: |
           set -euo pipefail
           EXPORT_PATH="$RUNNER_TEMP/export"
@@ -220,21 +234,31 @@ jobs:
               exit "$export_status"
             fi
 
-            EMBEDDED_PROFILE="$APP_PATH/embedded.mobileprovision"
-            if [ ! -f "$EMBEDDED_PROFILE" ]; then
-              echo "No embedded provisioning profile found in archive for fallback export."
+            MANUAL_EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.manual.plist"
+            INFO_PLIST="$APP_PATH/Info.plist"
+            BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST")
+
+            PROFILE_NAME="${INSTALLED_PROFILE_NAME:-}"
+            PROFILE_UUID="${INSTALLED_PROFILE_UUID:-}"
+            PROFILE_BUNDLE_ID="${INSTALLED_PROFILE_BUNDLE_ID:-}"
+            PROFILE_HAS_DEVICES="${INSTALLED_PROFILE_HAS_DEVICES:-}"
+            PROFILE_GET_TASK_ALLOW="${INSTALLED_PROFILE_GET_TASK_ALLOW:-}"
+
+            if [ -z "$PROFILE_NAME" ] || [ -z "$PROFILE_UUID" ]; then
+              echo "No BUILD_PROVISION_PROFILE_BASE64 App Store profile was installed for fallback export."
+              echo "Configure BUILD_PROVISION_PROFILE_BASE64 with an iOS App Store/TestFlight profile for $BUNDLE_ID."
               exit "$export_status"
             fi
 
-            PROFILE_PLIST="$RUNNER_TEMP/embedded-profile.plist"
-            MANUAL_EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.manual.plist"
-            INFO_PLIST="$APP_PATH/Info.plist"
-            security cms -D -i "$EMBEDDED_PROFILE" > "$PROFILE_PLIST"
-            PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$PROFILE_PLIST")
-            PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$PROFILE_PLIST")
-            BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST")
-            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-            cp "$EMBEDDED_PROFILE" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
+            if [ "$PROFILE_BUNDLE_ID" != "$BUNDLE_ID" ]; then
+              echo "Installed fallback profile bundle identifier '$PROFILE_BUNDLE_ID' does not match app bundle '$BUNDLE_ID'."
+              exit "$export_status"
+            fi
+
+            if [ "$PROFILE_HAS_DEVICES" = "true" ] || [ "$PROFILE_GET_TASK_ALLOW" = "true" ]; then
+              echo "Installed fallback profile '$PROFILE_NAME' is not an App Store/TestFlight distribution profile."
+              exit "$export_status"
+            fi
 
             cp ExportOptions.plist "$MANUAL_EXPORT_PLIST"
             /usr/libexec/PlistBuddy -c "Set :signingStyle manual" "$MANUAL_EXPORT_PLIST"
