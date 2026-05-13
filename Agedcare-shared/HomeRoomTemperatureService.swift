@@ -19,6 +19,7 @@ final class HomeRoomTemperatureService: NSObject, ObservableObject, HMHomeManage
 
     private let homeManager = HMHomeManager()
     private var refreshTask: Task<Void, Never>?
+    private var refreshTimer: Timer?
 
     override init() {
         super.init()
@@ -26,6 +27,18 @@ final class HomeRoomTemperatureService: NSObject, ObservableObject, HMHomeManage
     }
 
     func start() {
+        startRefreshTimerIfNeeded()
+        refreshIfPossible()
+    }
+
+    func stop() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+    }
+
+    func refreshNow() {
         refreshIfPossible()
     }
 
@@ -67,6 +80,15 @@ final class HomeRoomTemperatureService: NSObject, ObservableObject, HMHomeManage
         }
     }
 
+    private func startRefreshTimerIfNeeded() {
+        guard refreshTimer == nil else { return }
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshIfPossible()
+            }
+        }
+    }
+
     private func readTemperature(from characteristic: HMCharacteristic) async throws -> Double? {
         try await withCheckedThrowingContinuation { continuation in
             characteristic.readValue { error in
@@ -100,5 +122,7 @@ final class HomeRoomTemperatureService: NSObject, ObservableObject {
     @Published private(set) var errorMessage: String?
 
     func start() {}
+    func stop() {}
+    func refreshNow() {}
 }
 #endif

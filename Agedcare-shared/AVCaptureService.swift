@@ -614,53 +614,48 @@ final class AVCaptureService: NSObject, ObservableObject {
         updatedRecording.syncError = nil
         updateIncidentRecording(updatedRecording)
 
-        if let analysis = await AIMonitoringService.shared.analyzeVideoFile(
+        async let analysisTask = AIMonitoringService.shared.analyzeVideoFile(
             at: recording.fileURL,
             facilityId: facilityId.uuidString,
             residentId: recording.residentId?.uuidString,
             incidentType: recording.type
-        ) {
+        )
+        let cloudKitCandidate = updatedRecording
+        async let cloudKitTask = syncIncidentToCloudKit(cloudKitCandidate)
+
+        do {
+            updatedRecording = try await upsertIncidentMedia(updatedRecording, facilityId: facilityId)
+            updatedRecording.syncStatus = .pendingUpload
+            updatedRecording.syncError = nil
+            updateIncidentRecording(updatedRecording)
+        } catch {
+            updatedRecording.syncError = error.userFacingMessage(
+                fallback: "Care database sync is temporarily unavailable. The incident remains available on this device."
+            )
+            updateIncidentRecording(updatedRecording)
+        }
+
+        if let analysis = await analysisTask {
             updatedRecording.syncStatus = .synced
             updatedRecording.backendAnalysisID = analysis.id
             updatedRecording.backendSummary = analysis.summary ?? analysis.insights.first
             updatedRecording.backendMediaURL = URL(string: analysis.media_url)
+        } else if let analysisError = AIMonitoringService.shared.errorMessage {
+            updatedRecording.syncError = analysisError
         } else {
             updatedRecording.syncError = AIMonitoringService.shared.errorMessage
         }
 
-        updatedRecording.cloudKitRecordName = await syncIncidentToCloudKit(updatedRecording) ?? updatedRecording.cloudKitRecordName
-
-        let syncRequest = IncidentMediaSyncRequest(
-            p_incident_id: updatedRecording.id,
-            p_facility_id: facilityId,
-            p_resident_id: updatedRecording.residentId,
-            p_incident_type: updatedRecording.type,
-            p_recorded_at: updatedRecording.timestamp,
-            p_duration_seconds: updatedRecording.duration,
-            p_local_filename: updatedRecording.fileURL.lastPathComponent,
-            p_snapshot_filename: updatedRecording.snapshotURL?.lastPathComponent,
-            p_external_media_url: updatedRecording.backendMediaURL?.absoluteString,
-            p_analysis_id: updatedRecording.backendAnalysisID,
-            p_summary: updatedRecording.backendSummary,
-            p_cloudkit_record_name: updatedRecording.cloudKitRecordName,
-            p_sync_status: (updatedRecording.backendMediaURL == nil ? IncidentSyncStatus.pendingUpload : IncidentSyncStatus.synced).rawValue,
-            p_metadata: makeIncidentMetadata(for: updatedRecording)
-        )
+        updatedRecording.cloudKitRecordName = await cloudKitTask ?? updatedRecording.cloudKitRecordName
 
         do {
-            let response: IncidentMediaSyncResponse = try await incidentMediaClient.rpc("upsert_incident_media", payload: syncRequest)
-            updatedRecording.supabaseIncidentID = UUID(uuidString: response.incidentID)
-            if updatedRecording.backendMediaURL == nil, let remoteURL = response.externalMediaURL {
-                updatedRecording.backendMediaURL = URL(string: remoteURL)
-            }
-            if updatedRecording.cloudKitRecordName == nil {
-                updatedRecording.cloudKitRecordName = response.cloudKitRecordName
-            }
-            updatedRecording.lastSyncedAt = response.syncedAt ?? Date()
+            updatedRecording = try await upsertIncidentMedia(updatedRecording, facilityId: facilityId)
             updatedRecording.syncStatus = .synced
             updatedRecording.syncError = nil
         } catch {
-            updatedRecording.syncStatus = .failed
+            updatedRecording.syncStatus = (updatedRecording.supabaseIncidentID != nil || updatedRecording.cloudKitRecordName != nil)
+                ? .pendingUpload
+                : .failed
             updatedRecording.syncError = error.userFacingMessage(
                 fallback: "Incident sync is temporarily unavailable. The video remains available on this device."
             )
@@ -692,6 +687,38 @@ final class AVCaptureService: NSObject, ObservableObject {
             metadata["snapshot_filename"] = AnyCodable(snapshotFilename)
         }
         return metadata
+    }
+
+    private func upsertIncidentMedia(_ recording: IncidentRecording, facilityId: UUID) async throws -> IncidentRecording {
+        let syncStatus: IncidentSyncStatus = recording.backendMediaURL == nil ? .pendingUpload : .synced
+        let syncRequest = IncidentMediaSyncRequest(
+            p_incident_id: recording.id,
+            p_facility_id: facilityId,
+            p_resident_id: recording.residentId,
+            p_incident_type: recording.type,
+            p_recorded_at: recording.timestamp,
+            p_duration_seconds: recording.duration,
+            p_local_filename: recording.fileURL.lastPathComponent,
+            p_snapshot_filename: recording.snapshotURL?.lastPathComponent,
+            p_external_media_url: recording.backendMediaURL?.absoluteString,
+            p_analysis_id: recording.backendAnalysisID,
+            p_summary: recording.backendSummary,
+            p_cloudkit_record_name: recording.cloudKitRecordName,
+            p_sync_status: syncStatus.rawValue,
+            p_metadata: makeIncidentMetadata(for: recording)
+        )
+
+        let response: IncidentMediaSyncResponse = try await incidentMediaClient.rpc("upsert_incident_media", payload: syncRequest)
+        var updatedRecording = recording
+        updatedRecording.supabaseIncidentID = UUID(uuidString: response.incidentID)
+        if updatedRecording.backendMediaURL == nil, let remoteURL = response.externalMediaURL {
+            updatedRecording.backendMediaURL = URL(string: remoteURL)
+        }
+        if updatedRecording.cloudKitRecordName == nil {
+            updatedRecording.cloudKitRecordName = response.cloudKitRecordName
+        }
+        updatedRecording.lastSyncedAt = response.syncedAt ?? Date()
+        return updatedRecording
     }
 
     private func retryPendingIncidentSyncs() async {

@@ -206,7 +206,7 @@ final class BackendHealthService: ObservableObject {
     private func checkAuth() async -> ComponentCheck {
         var request = URLRequest(url: AppHost.supabaseBaseURL.appendingPathComponent("auth/v1/settings"))
         request.httpMethod = "GET"
-        request.timeoutInterval = 10
+        request.timeoutInterval = 20
         request.setValue(AppHost.supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 

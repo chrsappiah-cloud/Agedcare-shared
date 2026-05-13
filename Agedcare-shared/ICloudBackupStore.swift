@@ -9,11 +9,15 @@ final class ICloudBackupStore {
   private let decoder = JSONDecoder()
 
   private init() {
-    kvStore.synchronize()
+    synchronizeIfAvailable()
   }
 
   var isICloudAvailable: Bool {
     FileManager.default.ubiquityIdentityToken != nil
+  }
+
+  private var shouldUseICloudKVStore: Bool {
+    isICloudAvailable
   }
 
   func saveAlerts(_ alerts: [AlertModel], facilityId: UUID) {
@@ -83,8 +87,9 @@ final class ICloudBackupStore {
   private func save<T: Codable>(_ value: T, forKey key: String) {
     guard let data = try? encoder.encode(value) else { return }
     defaults.set(data, forKey: key)
+    guard shouldUseICloudKVStore else { return }
     kvStore.set(data, forKey: key)
-    kvStore.synchronize()
+    synchronizeIfAvailable()
   }
 
   private func load<T: Codable>(_ type: T.Type, forKey key: String) -> T? {
@@ -93,11 +98,17 @@ final class ICloudBackupStore {
       return decoded
     }
 
-    if let data = kvStore.data(forKey: key),
+    if shouldUseICloudKVStore,
+       let data = kvStore.data(forKey: key),
        let decoded = try? decoder.decode(type, from: data) {
       return decoded
     }
 
     return nil
+  }
+
+  private func synchronizeIfAvailable() {
+    guard shouldUseICloudKVStore else { return }
+    kvStore.synchronize()
   }
 }

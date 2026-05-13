@@ -49,6 +49,7 @@ final class WatchConnectivityService: NSObject, ObservableObject {
   private var pendingUserInfo = [[String: Any]]()
   private var pendingApplicationContext = [String: Any]()
   private var latestApplicationContext = [String: Any]()
+  private var activationRequested = false
 
   private override init() {
     super.init()
@@ -62,6 +63,11 @@ final class WatchConnectivityService: NSObject, ObservableObject {
     session != nil
   }
 
+  private var canSyncWithPairedWatch: Bool {
+    guard let session else { return false }
+    return session.activationState == .activated && session.isPaired && session.isWatchAppInstalled
+  }
+
   var statusSummary: String {
     guard isSupported else { return "WatchConnectivity unavailable on this device" }
     if activationState != .activated { return "Activating Apple Watch link" }
@@ -72,9 +78,17 @@ final class WatchConnectivityService: NSObject, ObservableObject {
 
   func activateSessionIfNeeded() {
     guard let session else { return }
-    if session.activationState != .activated {
-      session.activate()
+    if session.activationState == .activated {
+      activationRequested = false
+      refreshState(from: session)
+      return
     }
+    guard !activationRequested else {
+      refreshState(from: session)
+      return
+    }
+    activationRequested = true
+    session.activate()
     refreshState(from: session)
   }
 
@@ -174,6 +188,7 @@ final class WatchConnectivityService: NSObject, ObservableObject {
       activateSessionIfNeeded()
       return
     }
+    guard session.isPaired, session.isWatchAppInstalled else { return }
 
     if session.isReachable {
       session.sendMessage(dict, replyHandler: nil) { [weak self] error in
@@ -197,6 +212,7 @@ final class WatchConnectivityService: NSObject, ObservableObject {
       activateSessionIfNeeded()
       return
     }
+    guard session.isPaired, session.isWatchAppInstalled else { return }
 
     do {
       try session.updateApplicationContext(latestApplicationContext)
@@ -208,7 +224,7 @@ final class WatchConnectivityService: NSObject, ObservableObject {
   }
 
   private func flushPendingQueues() {
-    guard let session, session.activationState == .activated else { return }
+    guard let session, canSyncWithPairedWatch else { return }
 
     if !pendingApplicationContext.isEmpty {
       latestApplicationContext.merge(pendingApplicationContext) { _, new in new }
@@ -254,11 +270,15 @@ extension WatchConnectivityService: WCSessionDelegate {
   nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
 
   nonisolated func sessionDidDeactivate(_ session: WCSession) {
-    session.activate()
+    Task { @MainActor in
+      activationRequested = false
+      activateSessionIfNeeded()
+    }
   }
 
   nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
     Task { @MainActor in
+      activationRequested = false
       refreshState(from: session)
       if let error {
         lastErrorMessage = error.localizedDescription

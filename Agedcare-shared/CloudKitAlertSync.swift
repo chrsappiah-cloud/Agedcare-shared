@@ -138,6 +138,8 @@ public final class CloudKitAlertSync: @unchecked Sendable {
 
   public func subscribeToChanges() async throws {
     try setup()
+    let accountStatus = try await container.accountStatus()
+    guard accountStatus == .available else { return }
     let sub = CKQuerySubscription(
       recordType: Self.alertRecordType,
       predicate: NSPredicate(value: true),

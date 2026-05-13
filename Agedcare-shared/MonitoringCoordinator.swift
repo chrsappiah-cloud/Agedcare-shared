@@ -61,6 +61,7 @@ final class MonitoringCoordinator: ObservableObject {
     incidentResetTask?.cancel()
     incidentResetTask = nil
     AVCaptureService.shared.frameHandler = nil
+    LocationWeatherService.shared.stop()
     syncWatchMonitoringStatus(statusText: "Monitoring paused")
   }
 
@@ -199,7 +200,7 @@ final class MonitoringCoordinator: ObservableObject {
     let signature = snapshot.backendSyncSignature()
     if lastWeatherSyncSignature == signature,
        let lastWeatherSyncDate,
-       timestamp.timeIntervalSince(lastWeatherSyncDate) < 600 {
+       timestamp.timeIntervalSince(lastWeatherSyncDate) < 60 {
       return
     }
 

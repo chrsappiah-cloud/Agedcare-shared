@@ -23,6 +23,9 @@ struct WeatherSnapshot {
     var headingDegrees: Double?
     var totalDistanceMeters: Double = 0
     var horizontalAccuracyMeters: Double?
+    var locationLastUpdated: Date?
+    var weatherLastUpdated: Date?
+    var roomTemperatureLastUpdated: Date?
     var lastUpdated: Date?
 
     var estimatedRoomTemperature: Double? {
@@ -98,6 +101,19 @@ struct WeatherSnapshot {
         return "Estimated from local weather"
     }
 
+    func liveStatusSummary(now: Date = Date()) -> String {
+        var parts = [
+            freshnessLabel("Location", at: locationLastUpdated, now: now, liveThreshold: 45),
+            freshnessLabel("Weather", at: weatherLastUpdated, now: now, liveThreshold: 120),
+        ]
+        if hasActualRoomTemperature {
+            parts.append(freshnessLabel("Room sensor", at: roomTemperatureLastUpdated, now: now, liveThreshold: 90))
+        } else {
+            parts.append("Room temp estimated")
+        }
+        return parts.joined(separator: " • ")
+    }
+
     func backendMetrics() -> [(metric: String, value: Double)] {
         var metrics: [(metric: String, value: Double)] = []
 
@@ -139,6 +155,23 @@ struct WeatherSnapshot {
         let measurement = Measurement(value: celsius, unit: UnitTemperature.celsius).converted(to: unit)
         return String(format: "%.1f °%@", measurement.value, unit == .celsius ? "C" : "F")
     }
+
+    private func freshnessLabel(_ label: String, at date: Date?, now: Date, liveThreshold: TimeInterval) -> String {
+        guard let date else { return "\(label) pending" }
+        let age = max(0, Int(now.timeIntervalSince(date)))
+        let relative: String
+        if age < 60 {
+            relative = "\(age)s ago"
+        } else if age < 3600 {
+            relative = "\(max(1, age / 60))m ago"
+        } else {
+            relative = "\(max(1, age / 3600))h ago"
+        }
+        if TimeInterval(age) <= liveThreshold {
+            return "\(label) live (\(relative))"
+        }
+        return "\(label) \(relative)"
+    }
 }
 
 @MainActor
@@ -152,11 +185,17 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
 
     private let manager = CLLocationManager()
     private let roomTemperatureService = HomeRoomTemperatureService.shared
+    private let weatherRefreshInterval: TimeInterval = 60
+    private let weatherRefreshDistanceMeters: CLLocationDistance = 25
+    private let geocodeRefreshInterval: TimeInterval = 180
+    private let geocodeRefreshDistanceMeters: CLLocationDistance = 25
+    private let locationRefreshInterval: TimeInterval = 30
     private var lastLocation: CLLocation?
     private var lastWeatherFetchLocation: CLLocation?
     private var lastWeatherFetchDate: Date?
     private var lastGeocodedLocation: CLLocation?
     private var lastGeocodeDate: Date?
+    private var refreshTimer: Timer?
     private var cancellables: Set<AnyCancellable> = []
 
     override init() {
@@ -165,6 +204,7 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         manager.distanceFilter = 5
         manager.activityType = .fitness
+        manager.pausesLocationUpdatesAutomatically = false
         authorizationStatus = manager.authorizationStatus
 
         roomTemperatureService.$latestReading
@@ -173,6 +213,10 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
                 guard let self else { return }
                 self.snapshot.actualRoomTemperature = reading?.temperatureCelsius
                 self.snapshot.roomTemperatureSource = reading?.sourceName ?? ""
+                self.snapshot.roomTemperatureLastUpdated = reading?.updatedAt
+                if let updatedAt = reading?.updatedAt {
+                    self.snapshot.lastUpdated = updatedAt
+                }
             }
             .store(in: &cancellables)
     }
@@ -190,8 +234,23 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
     }
 
     func stop() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
         manager.stopUpdatingLocation()
         manager.stopUpdatingHeading()
+        roomTemperatureService.stop()
+    }
+
+    func refreshNow() {
+        roomTemperatureService.refreshNow()
+        guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else { return }
+        if let location = manager.location {
+            Task { @MainActor in
+                await self.process(location: location)
+            }
+        } else {
+            manager.requestLocation()
+        }
     }
 
     private func startLocationUpdates() {
@@ -199,6 +258,8 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         if CLLocationManager.headingAvailable() {
             manager.startUpdatingHeading()
         }
+        manager.requestLocation()
+        startRefreshTimerIfNeeded()
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -245,7 +306,9 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         snapshot.locationName = snapshot.formattedCoordinates()
         snapshot.currentSpeedMetersPerSecond = location.speed >= 0 ? location.speed : nil
         snapshot.horizontalAccuracyMeters = location.horizontalAccuracy
-        snapshot.lastUpdated = Date()
+        let updatedAt = Date()
+        snapshot.locationLastUpdated = updatedAt
+        snapshot.lastUpdated = updatedAt
 
         appendCoordinateIfNeeded(location.coordinate)
         await reverseGeocodeIfNeeded(for: location)
@@ -273,10 +336,10 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
 
     private func shouldRefreshWeather(for location: CLLocation) -> Bool {
         guard let lastWeatherFetchDate, let lastWeatherFetchLocation else { return true }
-        if Date().timeIntervalSince(lastWeatherFetchDate) > 600 {
+        if Date().timeIntervalSince(lastWeatherFetchDate) > weatherRefreshInterval {
             return true
         }
-        return location.distance(from: lastWeatherFetchLocation) >= 100
+        return location.distance(from: lastWeatherFetchLocation) >= weatherRefreshDistanceMeters
     }
 
     private func reverseGeocodeIfNeeded(for location: CLLocation) async {
@@ -302,10 +365,10 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         if snapshot.locationName.isEmpty {
             return true
         }
-        if Date().timeIntervalSince(lastGeocodeDate) > 900 {
+        if Date().timeIntervalSince(lastGeocodeDate) > geocodeRefreshInterval {
             return true
         }
-        return location.distance(from: lastGeocodedLocation) >= 75
+        return location.distance(from: lastGeocodedLocation) >= geocodeRefreshDistanceMeters
     }
 
     private func reverseGeocode(_ location: CLLocation) async throws -> [MKMapItem] {
@@ -353,7 +416,10 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
             snapshot.humidity = current.humidity
             snapshot.conditionDescription = current.condition.description
             snapshot.conditionSymbol = current.symbolName
-            lastWeatherFetchDate = Date()
+            let updatedAt = Date()
+            snapshot.weatherLastUpdated = updatedAt
+            snapshot.lastUpdated = updatedAt
+            lastWeatherFetchDate = updatedAt
             lastWeatherFetchLocation = location
         } catch {
             self.error = "Weather unavailable: \(error.localizedDescription)"
@@ -364,10 +430,24 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
         snapshot.humidity = 0.55
         snapshot.conditionDescription = "Partly Cloudy"
         snapshot.conditionSymbol = "cloud.sun.fill"
-        lastWeatherFetchDate = Date()
+        let updatedAt = Date()
+        snapshot.weatherLastUpdated = updatedAt
+        snapshot.lastUpdated = updatedAt
+        lastWeatherFetchDate = updatedAt
         lastWeatherFetchLocation = location
         #endif
 
         isLoading = false
+    }
+
+    private func startRefreshTimerIfNeeded() {
+        guard refreshTimer == nil else { return }
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: locationRefreshInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.roomTemperatureService.refreshNow()
+                self.manager.requestLocation()
+            }
+        }
     }
 }

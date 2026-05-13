@@ -734,6 +734,32 @@ struct BackendHealthProbeTests {
         #expect(recording.resolvedSyncStatus == IncidentSyncStatus.localOnly)
     }
 
+    @Test func weatherSnapshotLiveStatusShowsFreshnessAndEstimatedRoomTemp() {
+        var snapshot = WeatherSnapshot()
+        let now = Date()
+        snapshot.locationLastUpdated = now.addingTimeInterval(-10)
+        snapshot.weatherLastUpdated = now.addingTimeInterval(-75)
+
+        let summary = snapshot.liveStatusSummary(now: now)
+
+        #expect(summary.contains("Location live"))
+        #expect(summary.contains("Weather live"))
+        #expect(summary.contains("Room temp estimated"))
+    }
+
+    @Test func weatherSnapshotLiveStatusUsesRoomSensorTimestampWhenAvailable() {
+        var snapshot = WeatherSnapshot()
+        let now = Date()
+        snapshot.actualRoomTemperature = 22.4
+        snapshot.roomTemperatureSource = "Resident room sensor"
+        snapshot.roomTemperatureLastUpdated = now.addingTimeInterval(-20)
+
+        let summary = snapshot.liveStatusSummary(now: now)
+
+        #expect(summary.contains("Room sensor live"))
+        #expect(!summary.contains("estimated"))
+    }
+
     /// The Vercel marketing site (also linked from the app footer) must respond.
     /// Tolerates offline test environments by recording rather than failing.
     @Test func vercelMarketingSiteReachable() async throws {

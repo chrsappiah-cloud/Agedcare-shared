@@ -8,14 +8,15 @@ struct WeatherCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             headerRow
-            if service.isLoading {
+            if service.isLoading && !hasSnapshotContent {
                 ProgressView("Fetching weather…")
                     .frame(maxWidth: .infinity)
-            } else if let err = service.error {
-                Label(err, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.danger)
             } else {
+                if let err = service.error {
+                    Label(err, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.danger)
+                }
                 residentMap
                 weatherGrid
                 movementGrid
@@ -39,13 +40,18 @@ struct WeatherCardView: View {
                 Text("Weather & Room Temp")
                     .font(.headline)
                     .foregroundStyle(AppTheme.textPrimary)
-                if !service.snapshot.locationName.isEmpty {
-                    Text(service.snapshot.locationName)
+                if !service.snapshot.liveStatusSummary().isEmpty {
+                    Text(service.snapshot.liveStatusSummary())
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
             }
             Spacer()
+            if let lastUpdated = service.snapshot.lastUpdated {
+                Text(lastUpdated, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
             Button { service.requestPermissionAndStart() } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.subheadline)
@@ -141,6 +147,11 @@ struct WeatherCardView: View {
             Text(service.snapshot.roomTemperatureSourceDescription())
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
+            if !service.snapshot.locationName.isEmpty {
+                Text(service.snapshot.locationName)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
             if !service.snapshot.hasActualRoomTemperature {
                 Text("Add a HomeKit temperature sensor or thermostat to show actual room temperature.")
                     .font(.caption2)
@@ -148,6 +159,13 @@ struct WeatherCardView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    private var hasSnapshotContent: Bool {
+        service.snapshot.coordinate != nil
+            || service.snapshot.outdoorTemperature != nil
+            || service.snapshot.roomTemperature != nil
+            || !service.snapshot.locationName.isEmpty
     }
 }
 

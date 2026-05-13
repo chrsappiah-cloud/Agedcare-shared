@@ -34,11 +34,13 @@ final class AIMonitoringService: ObservableObject {
   }
 
   func analyzeVideoFile(at url: URL, facilityId: String, residentId: String? = nil, incidentType: String? = nil) async -> MediaAnalysisResult? {
-    guard let data = try? Data(contentsOf: url) else {
+    let b64: String
+    do {
+      b64 = try await base64EncodedContents(of: url)
+    } catch {
       errorMessage = "Cannot read video file"
       return nil
     }
-    let b64 = data.base64EncodedString()
     let context = incidentType.map { "Incident type: \($0.replacingOccurrences(of: "_", with: " "))" }
     return await analyzeMedia(
       b64,
@@ -184,5 +186,12 @@ final class AIMonitoringService: ObservableObject {
   deinit {
     pollTimer?.invalidate()
     pollTimer = nil
+  }
+
+  private nonisolated func base64EncodedContents(of url: URL) async throws -> String {
+    try await Task.detached(priority: .userInitiated) {
+      let data = try Data(contentsOf: url)
+      return data.base64EncodedString()
+    }.value
   }
 }
