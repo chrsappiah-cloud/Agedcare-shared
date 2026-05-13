@@ -200,6 +200,17 @@ struct SubscriptionTierTests {
         let features = SubscriptionTier.careTeam.features.joined(separator: " ").lowercased()
         #expect(features.contains("multi-user") || features.contains("staff"))
     }
+
+    @Test func testingAccessProfilesCoverAllSubscriptionTiers() {
+        let tiers = Set(AppHost.testingAccessProfiles.map(\.subscriptionTier))
+        #expect(tiers.contains(.starter))
+        #expect(tiers.contains(.carePro))
+        #expect(tiers.contains(.careTeam))
+    }
+
+    @Test func testingAccessProfilesIncludeAccessNotesForInvitations() {
+        #expect(AppHost.testingAccessProfiles.allSatisfy { !$0.accessNotes.isEmpty })
+    }
 }
 
 // MARK: - Marketing Config Tests

@@ -16,7 +16,16 @@ final class Agedcare_sharedUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        addUIInterruptionMonitor(withDescription: "System Permissions") { alert in
+            let preferredButtons = ["Allow While Using App", "Allow", "OK", "Continue"]
+            for title in preferredButtons where alert.buttons[title].exists {
+                alert.buttons[title].tap()
+                return true
+            }
+            return false
+        }
         app.launch()
+        app.tap()
     }
 
     override func tearDownWithError() throws {
@@ -113,5 +122,34 @@ final class Agedcare_sharedUITests: XCTestCase {
 
         XCTAssertTrue(app.segmentedControls["panel_router"].waitForExistence(timeout: 10),
                       "Switch Panel should return to the onboarding hero")
+    }
+
+    @MainActor
+    func testResidentWeatherTabsRenderAndSwitch() throws {
+        let residentCTA = app.buttons["setup_resident"]
+        XCTAssertTrue(residentCTA.waitForExistence(timeout: 10))
+        residentCTA.tap()
+
+        let residentCell = app.buttons["Aisha Khan"]
+        XCTAssertTrue(residentCell.waitForExistence(timeout: 20))
+        residentCell.tap()
+        app.tap()
+
+        let weatherTabs = app.segmentedControls["weather_section_tabs"]
+        XCTAssertTrue(weatherTabs.waitForExistence(timeout: 20),
+                      "Weather tabs should appear on the resident home view")
+
+        XCTAssertTrue(app.otherElements["weather_overview_panel"].waitForExistence(timeout: 10),
+                      "Overview weather panel should render by default")
+
+        weatherTabs.buttons["Location"].tap()
+        XCTAssertTrue(app.otherElements["weather_location_panel"].waitForExistence(timeout: 10),
+                      "Location weather panel should render when selected")
+
+        weatherTabs.buttons["Systems"].tap()
+        XCTAssertTrue(app.otherElements["weather_systems_panel"].waitForExistence(timeout: 10),
+                      "Systems weather panel should render when selected")
+        XCTAssertTrue(app.staticTexts["Backend sync"].waitForExistence(timeout: 10),
+                      "Systems panel should show backend sync status")
     }
 }

@@ -95,12 +95,15 @@ struct WeatherCardView: View {
         switch selectedTab {
         case .overview:
             weatherGrid
+                .accessibilityIdentifier("weather_overview_panel")
             roomTemperatureFootnote
         case .location:
             residentMap
             movementGrid
+                .accessibilityIdentifier("weather_location_panel")
         case .systems:
             systemsGrid
+                .accessibilityIdentifier("weather_systems_panel")
         }
     }
 
