@@ -6,11 +6,22 @@ set -euo pipefail
 
 KEY_ID="${ASC_KEY_ID:-A863K5FF84}"
 ISSUER_ID="${ASC_ISSUER_ID:-70c46c69-5d6d-438d-b300-31df2b93163a}"
-P8_PATH="${1:-$HOME/Downloads/AuthKey_${KEY_ID}.p8}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+P8_PATH="${1:-}"
+if [[ -z "$P8_PATH" ]]; then
+  for candidate in \
+    "$HOME/Downloads/AuthKey_${KEY_ID}.p8" \
+    "$SCRIPT_DIR/.auth/AuthKey_${KEY_ID}.p8" \
+    "$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8"; do
+    if [[ -f "$candidate" ]]; then P8_PATH="$candidate"; break; fi
+  done
+fi
 
-if [[ ! -f "$P8_PATH" ]]; then
-  echo "❌ Missing API key file: $P8_PATH"
-  echo "Download it once from App Store Connect → Integrations → API → Key $KEY_ID"
+if [[ -z "${P8_PATH:-}" || ! -f "$P8_PATH" ]]; then
+  echo "❌ Missing API key file AuthKey_${KEY_ID}.p8"
+  echo "Download once from App Store Connect → Integrations → API, then either:"
+  echo "  cp ~/Downloads/AuthKey_${KEY_ID}.p8 scripts/.auth/"
+  echo "  ./scripts/setup_asc_secrets.sh ~/Downloads/AuthKey_${KEY_ID}.p8"
   exit 1
 fi
 
