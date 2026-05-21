@@ -7,7 +7,10 @@ cannot create a managed distribution profile automatically, you should also set
 the optional fallback profile secret below.
 
 Configure each one at:
-**GitHub → repo → Settings → Secrets and variables → Actions → New repository secret**
+**GitHub → repo → Settings → Secrets and variables → Actions → Repository secrets → New repository secret**
+
+(Repository secrets are used by `cd.yml`. Do not rely on the `production` environment
+unless you duplicate every secret there.)
 
 | Secret | What it is | How to obtain it |
 |---|---|---|
