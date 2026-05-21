@@ -196,6 +196,14 @@ jobs:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
         run: |
           set -euo pipefail
+          AUTH_ARGS=(-allowProvisioningUpdates)
+          if [ -f "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" ]; then
+            AUTH_ARGS+=(
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
+              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            )
+          fi
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
@@ -203,11 +211,7 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            "${AUTH_ARGS[@]}" \
             | tee "$RUNNER_TEMP/archive.log"
           test -d "$RUNNER_TEMP/$SCHEME.xcarchive"
 
@@ -226,15 +230,20 @@ jobs:
           rm -rf "$EXPORT_PATH"
           mkdir -p "$EXPORT_PATH"
 
+          AUTH_ARGS=(-allowProvisioningUpdates)
+          if [ -f "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" ]; then
+            AUTH_ARGS+=(
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
+              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            )
+          fi
           set +e
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$EXPORT_PATH" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            "${AUTH_ARGS[@]}" \
             2>&1 | tee "$EXPORT_LOG"
           export_status=${PIPESTATUS[0]}
           set -e
