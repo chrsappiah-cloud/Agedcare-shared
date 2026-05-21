@@ -1,0 +1,23 @@
+WCS Care 1.0.4 — App Store submission build
+
+This build is the first App Store candidate on the hardened production TestFlight
+pipeline. It packages the Xcode 26.5 refresh, weather and invitation coverage,
+and the full App Store metadata pack for review.
+
+WHAT'S NEW
+• Production TestFlight pipeline with cloud-managed signing and stale-profile guard
+• App Store review notes, privacy nutrition label answers, and rejection templates
+• XCUITest fixes for iOS 26 system permission alerts
+• Weather card, HomeKit room temperature, and invitation flows validated in CI
+
+HOW YOU CAN HELP
+• Confirm hero router, staff sign-in, alert creation, and weather card on a physical device
+• Exercise Plans & Pricing and beta feedback from Settings
+• Report any crash or permission prompt that blocks onboarding
+
+KNOWN
+• Paid tiers remain free during TestFlight; App Store pricing activates after approval
+
+— Dr Christopher Appiah-Thompson, World Class Scholars
+Website: https://wcs-full.vercel.app
+Contact: christopher.appiahthompson@myworldclass.org | chrsappiah@gmail.com

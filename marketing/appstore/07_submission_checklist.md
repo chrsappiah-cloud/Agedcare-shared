@@ -13,7 +13,7 @@ App Store Connect. Tick each item.
 - [ ] PR #1 reviewed (CodeQL, CodeRabbit) and squash-merged to `main`
 - [ ] `MARKETING_VERSION` agreed (e.g. `1.0.4`)
 - [ ] `CURRENT_PROJECT_VERSION` higher than the last accepted TestFlight
-      build (currently `116`)
+      build (currently `117`)
 
 ## Build & upload (CI does this when you tag)
 

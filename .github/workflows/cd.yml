@@ -139,6 +139,23 @@ jobs:
           PROFILE_HAS_DEVICES=$(/usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1 && echo "true" || echo "false")
           PROFILE_GET_TASK_ALLOW=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:get-task-allow" "$RUNNER_TEMP/Agedcare-shared-profile.plist" 2>/dev/null || echo "false")
           PROFILE_HAS_BETA=$(/usr/libexec/PlistBuddy -c "Print :ProvisionsAllDevices" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1 && echo "enterprise" || echo "standard")
+          missing_caps=()
+          for entitlement in \
+            com.apple.developer.homekit \
+            com.apple.developer.weatherkit \
+            com.apple.developer.messages.critical-messaging; do
+            if /usr/libexec/PlistBuddy -c "Print :Entitlements:$entitlement" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1; then
+              continue
+            fi
+            missing_caps+=("$entitlement")
+          done
+          if [ ${#missing_caps[@]} -ne 0 ]; then
+            echo "::warning::Skipping stale BUILD_PROVISION_PROFILE_BASE64 profile '$PROFILE_NAME'."
+            echo "::warning::Missing entitlements: ${missing_caps[*]}"
+            echo "::warning::Regenerate the App Store profile in developer.apple.com (App ID wcs.Agedcare-shared must include HomeKit, WeatherKit, Critical Messaging) and update the secret."
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           cp "$RUNNER_TEMP/Agedcare-shared.mobileprovision" \
             ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
           echo "installed=true" >> "$GITHUB_OUTPUT"
@@ -187,6 +204,7 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
@@ -223,6 +241,11 @@ jobs:
           set -e
 
           if [ "$export_status" -ne 0 ]; then
+            if grep -Eq "doesn't include the|doesn't include the com.apple.developer" "$EXPORT_LOG"; then
+              echo "::error::App Store provisioning profile is missing required capabilities (HomeKit, WeatherKit, Critical Messaging)."
+              echo "::error::Enable them on the App ID in developer.apple.com, regenerate the distribution profile, then refresh BUILD_PROVISION_PROFILE_BASE64 or rely on cloud signing with an App Manager API key."
+              exit "$export_status"
+            fi
             if ! grep -Eq "Cloud signing permission error|No profiles for '.*' were found" "$EXPORT_LOG"; then
               echo "Automatic export failed for a non-profile reason; not retrying."
               exit "$export_status"

@@ -14,7 +14,7 @@ Configure each one at:
 | `ASC_KEY_ID` | App Store Connect API Key ID | App Store Connect → Users and Access → Keys (e.g. `ABC1234567`) |
 | `ASC_ISSUER_ID` | App Store Connect issuer UUID | Same page, top of the Keys tab |
 | `ASC_PRIVATE_KEY_BASE64` | The `.p8` API key file, base64 | `base64 -i AuthKey_ABC1234567.p8 \| pbcopy` |
-| `BUILD_PROVISION_PROFILE_BASE64` *(optional fallback)* | App Store provisioning profile, base64 | `base64 -i ~/Downloads/Agedcare-shared.mobileprovision \| pbcopy` |
+| `BUILD_PROVISION_PROFILE_BASE64` *(optional fallback)* | App Store provisioning profile, base64 | `base64 -i ~/Downloads/Agedcare-shared.mobileprovision \| pbcopy` — must include **HomeKit**, **WeatherKit**, and **Critical Messaging** entitlements |
 | `BUILD_CERTIFICATE_BASE64` *(optional robust fallback)* | Apple Distribution certificate `.p12`, base64 | Export the signing certificate as `.p12`, then `base64 -i certificate.p12 \| pbcopy` |
 | `BUILD_CERTIFICATE_PASSWORD` *(required with `BUILD_CERTIFICATE_BASE64`)* | Password used to export the `.p12` | Choose during certificate export |
 
@@ -44,6 +44,17 @@ signing is not permitted for the API key, add:
 
 so the workflow can archive and export with an imported Apple Distribution
 certificate instead of relying on App Store Connect cloud signing.
+
+### Refreshing a stale provisioning profile
+
+If CD export fails with missing HomeKit / WeatherKit / Critical Messaging
+capabilities:
+
+1. developer.apple.com → Identifiers → `wcs.Agedcare-shared` → enable
+   **HomeKit**, **WeatherKit**, and **Critical Messaging**
+2. Profiles → regenerate the **App Store** distribution profile
+3. Download the new `.mobileprovision` and update `BUILD_PROVISION_PROFILE_BASE64`
+4. Re-run **Actions → CD — TestFlight (Production) → Run workflow**
 
 ## Cloudflare Worker deployment secrets
 

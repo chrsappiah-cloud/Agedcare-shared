@@ -8,12 +8,12 @@ Keep under 4 000 characters.
 
 ---
 
-**Build 1.0.3 (116)**
+**Build 1.0.4 (117)**
 
 Thank you for joining the AgedCare Monitor beta on the **WCS Care** track. This
-build refreshes the project to Xcode 26.5, hardens the production TestFlight
-pipeline (cloud-managed signing with provisioning-profile fallback), and adds
-weather and invitation test coverage.
+build is the App Store submission candidate: Xcode 26.5, hardened production
+TestFlight signing (skips stale provisioning profiles), App Store metadata pack,
+and XCUITest fixes for iOS 26 permission alerts.
 
 Please test:
 
