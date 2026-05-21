@@ -31,6 +31,8 @@ gh secret set ASC_KEY_ID --body "$KEY_ID"
 echo "Setting ASC_ISSUER_ID"
 gh secret set ASC_ISSUER_ID --body "$ISSUER_ID"
 
+echo "Setting ASC_PRIVATE_KEY (raw PEM) from $P8_PATH"
+gh secret set ASC_PRIVATE_KEY < "$P8_PATH"
 echo "Setting ASC_PRIVATE_KEY_BASE64 from $P8_PATH"
 base64 -i "$P8_PATH" | gh secret set ASC_PRIVATE_KEY_BASE64
 

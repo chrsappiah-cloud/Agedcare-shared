@@ -40,19 +40,28 @@ jobs:
         run: xcodebuild -version
 
       - name: Pre-flight — verify required signing secrets
+        id: preflight
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
         run: |
           set -e
+          has_api_key=false
+          if [ -n "${ASC_PRIVATE_KEY_BASE64:-}" ] || [ -n "${ASC_PRIVATE_KEY:-}" ]; then
+            has_api_key=true
+          fi
           missing=()
-          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY_BASE64; do
+          for name in ASC_KEY_ID ASC_ISSUER_ID; do
             if [ -z "${!name:-}" ]; then missing+=("$name"); fi
           done
+          if [ "$has_api_key" = false ]; then
+            missing+=("ASC_PRIVATE_KEY_BASE64 or ASC_PRIVATE_KEY")
+          fi
           if [ ${#missing[@]} -ne 0 ]; then
             {
               echo "### ❌ Missing required GitHub Actions secrets"
@@ -108,14 +117,21 @@ jobs:
 
       - name: Prepare App Store Connect API key
         env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
         run: |
           set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
           mkdir -p ~/.appstoreconnect/private_keys
-          echo -n "$ASC_PRIVATE_KEY_BASE64" | base64 --decode \
-            > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
-          echo -n "$ASC_PRIVATE_KEY_BASE64" | base64 --decode \
-            -o "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+          if [ -n "${ASC_PRIVATE_KEY_BASE64:-}" ]; then
+            echo -n "$ASC_PRIVATE_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          elif [ -n "${ASC_PRIVATE_KEY:-}" ]; then
+            printf '%s' "$ASC_PRIVATE_KEY" > "$KEY_PATH"
+          else
+            echo "::error::Neither ASC_PRIVATE_KEY_BASE64 nor ASC_PRIVATE_KEY is set"
+            exit 1
+          fi
+          cp "$KEY_PATH" ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
 
       - name: Install App Store provisioning profile
         id: provisioning
