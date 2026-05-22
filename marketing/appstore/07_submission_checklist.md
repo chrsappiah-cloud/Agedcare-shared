@@ -11,18 +11,16 @@ App Store Connect. Tick each item.
 - [ ] `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY_BASE64` saved in
       GitHub repo secrets (production environment)
 - [ ] PR #1 reviewed (CodeQL, CodeRabbit) and squash-merged to `main`
-- [ ] `MARKETING_VERSION` agreed (e.g. `1.0.4`)
-- [ ] `CURRENT_PROJECT_VERSION` higher than the last accepted TestFlight
-      build (currently `117`)
+- [x] `MARKETING_VERSION` agreed (`1.0.4`)
+- [x] `CURRENT_PROJECT_VERSION` higher than the last accepted TestFlight
+      build (`117`)
 
-## Build & upload (CI does this when you tag)
+## Build & upload
 
-- [ ] `git tag v1.0.4 && git push origin v1.0.4` triggers
-      `.github/workflows/cd.yml`
-- [ ] Workflow archives, exports IPA, validates against App Store Connect,
-      uploads to TestFlight
-- [ ] Build appears in App Store Connect → TestFlight tab within ~15 min
-      after upload (processing time)
+- [x] Archive + export succeeded locally (clean bundle, system `rsync` PATH)
+- [x] **1.0.4 (117)** uploaded to App Store Connect (2026-05-22, Xcode session)
+- [ ] `ASC_PRIVATE_KEY` in GitHub (for CI `cd.yml` on future tags)
+- [ ] Build **processed** in TestFlight (check App Store Connect — ~15 min)
 
 ## TestFlight (you, in App Store Connect)
 
