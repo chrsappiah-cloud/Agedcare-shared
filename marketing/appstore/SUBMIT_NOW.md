@@ -25,20 +25,25 @@ Issuer ID: `70c46c69-5d6d-438d-b300-31df2b93163a`
 
 ## After TestFlight build processes (~15 min)
 
+**All copy-paste answers:** `08_distribution_review_responses.md`  
+**Open every ASC screen:** `./scripts/open-distribution-review.sh`
+
 ### App Store Connect → TestFlight
 
-- Paste **What to Test** from `02_what_to_test.md`
-- Answer **Export Compliance** per `06_age_rating_and_export.md` (standard encryption only)
+- Paste **What to Test** from `02_what_to_test.md` (or Section 2 in `08_…`)
+- **Export Compliance** — Section 1 in `08_…` (`ITSAppUsesNonExemptEncryption` is in Info.plist)
+- External testers: **Beta App Review** notes — Section 3 in `08_…`
 
 ### App Store Connect → App Store → Version 1.0.4
 
 | Field | Source file |
 |-------|-------------|
+| **All questionnaires (one doc)** | `08_distribution_review_responses.md` |
 | Name, subtitle, description, keywords | `05_appstore_form_fields.md` |
-| Privacy nutrition label | `03_privacy_nutrition_label.md` |
-| Age rating (17+) | `06_age_rating_and_export.md` |
-| Review notes + demo account | `01_review_notes.md` |
-| Screenshots (6.7" iPhone) | Capture from build — see `07_submission_checklist.md` |
+| Privacy nutrition label | `03_privacy_nutrition_label.md` or Section 5 in `08_…` |
+| Age rating (17+) | `06_age_rating_and_export.md` or Section 4 in `08_…` |
+| Review notes + demo account | `01_review_notes.md` or Section 7 in `08_…` |
+| Screenshots (6.7" iPhone) | `marketing/out/appstore_*.png` |
 
 ### Attach build and submit
 

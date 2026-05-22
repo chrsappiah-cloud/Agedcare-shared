@@ -53,10 +53,10 @@ The app uses HTTPS (URLSession with TLS) and Apple's CloudKit; both are
 Once confirmed for the first build, App Store Connect remembers the answer
 and you do not have to repeat it for each upload of the same version.
 
-A pre-encoded `ITSAppUsesNonExemptEncryption = NO` key can also be added to
-`Info.plist` to skip the prompt on every TestFlight upload. **Do not add this
-key yet** — only add it after you have verified the answers above with your
-legal/compliance reviewer.
+`ITSAppUsesNonExemptEncryption = false` is set in `Agedcare-shared/Info.plist`
+so TestFlight export-compliance prompts are pre-answered for standard HTTPS/TLS
+only. Confirm the questionnaire answers in Section 1 of
+`08_distribution_review_responses.md` on the first build if Apple still asks.
 
 ---
 

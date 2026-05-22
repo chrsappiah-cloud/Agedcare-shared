@@ -24,9 +24,12 @@ App Store Connect. Tick each item.
 
 ## TestFlight (you, in App Store Connect)
 
+Use **`08_distribution_review_responses.md`** for every answer below.
+
 - [ ] Build processed (no yellow warning triangle)
-- [ ] Export Compliance answered (see `06_age_rating_and_export.md`)
-- [ ] "What to Test" copied from `02_what_to_test.md` (en-US locale)
+- [ ] Export Compliance answered (Section 1 — or auto via `ITSAppUsesNonExemptEncryption`)
+- [ ] "What to Test" copied (Section 2 / `02_what_to_test.md`)
+- [ ] Beta App Review notes filled if using external testers (Section 3)
 - [ ] Internal test group invited (max 100); external group submitted for
       Beta App Review if you need more testers
 - [ ] At least one tester confirms install + sign-in + alert creation
@@ -37,11 +40,10 @@ App Store Connect. Tick each item.
       `05_appstore_form_fields.md`
 - [ ] Promotional text + Description + Keywords filled
 - [ ] Support URL, Marketing URL, Privacy Policy URL filled
-- [ ] **App Privacy** nutrition label answered per
-      `03_privacy_nutrition_label.md`
-- [ ] **Age Rating** answered per `06_age_rating_and_export.md` →
-      computes 17+
-- [ ] **App Review Information** notes pasted from `01_review_notes.md`
+- [ ] **App Privacy** nutrition label (Section 5 / `03_privacy_nutrition_label.md`)
+- [ ] **Age Rating** → **17+** (Section 4 / `06_age_rating_and_export.md`)
+- [ ] **App Review Information** (Section 7 / `01_review_notes.md`)
+- [ ] Distribution declarations at submit (Section 8 in `08_…`)
 - [ ] Demo account email + password filled (`admin@gvcare.com` / `password`)
 - [ ] Sign-in required toggled **On**
 - [ ] Contact information current
