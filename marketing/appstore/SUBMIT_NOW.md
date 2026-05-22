@@ -47,6 +47,10 @@ Issuer ID: `70c46c69-5d6d-438d-b300-31df2b93163a`
 
 ### Attach build and submit
 
+```bash
+./scripts/submit-for-review.sh   # API submit if AuthKey_A863K5FF84.p8 exists; else opens ASC + clipboard
+```
+
 1. **+ Build** → select **1.0.4 (117)** or latest CI build number
 2. **Submit for Review**
 3. Enable **Phased Release**; leave manual release off
