@@ -43,6 +43,8 @@ xcodebuild archive \
   -authenticationKeyIssuerID "$ISSUER_ID"
 
 echo "Exporting IPA…"
+# MacPorts/Homebrew rsync breaks Xcode export (use Apple rsync in /usr/bin).
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
 rm -rf "$EXPORT"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \

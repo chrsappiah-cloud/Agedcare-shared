@@ -68,6 +68,10 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				.idea,
+				"cloudflare-worker",
+				Agedcare_shared.entitlements,
+				Agedcare_shared_release.entitlements,
 			);
 			target = 5E0699CA2FAFEFEA008E21DB /* Agedcare-shared */;
 		};
@@ -78,6 +82,10 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				5E0699EE2FAFEFEC008E21DB /* Exceptions for "Agedcare-shared" folder in "Agedcare-shared" target */,
+			);
+			explicitFolders = (
+				.idea,
+				"cloudflare-worker",
 			);
 			path = "Agedcare-shared";
 			sourceTree = "<group>";
@@ -447,6 +455,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "agedcare-shared";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AgedCare Monitor uses the camera for AI-powered fall detection, room monitoring, and capturing photo evidence for incident reports.";
+				INFOPLIST_KEY_NSCriticalMessagingUsageDescription = "AgedCare Monitor sends time-sensitive critical alerts to staff and caregivers when a resident triggers SOS or when AI monitoring detects a possible fall or distress event.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "AgedCare Monitor uses Face ID to securely authenticate staff members.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "AgedCare Monitor reads health data to track resident vitals such as heart rate, blood oxygen, and step count for anomaly detection.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AgedCare Monitor writes health data to record monitoring measurements and vitals collected during care sessions.";
@@ -495,6 +504,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "agedcare-shared";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AgedCare Monitor uses the camera for AI-powered fall detection, room monitoring, and capturing photo evidence for incident reports.";
+				INFOPLIST_KEY_NSCriticalMessagingUsageDescription = "AgedCare Monitor sends time-sensitive critical alerts to staff and caregivers when a resident triggers SOS or when AI monitoring detects a possible fall or distress event.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "AgedCare Monitor uses Face ID to securely authenticate staff members.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "AgedCare Monitor reads health data to track resident vitals such as heart rate, blood oxygen, and step count for anomaly detection.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AgedCare Monitor writes health data to record monitoring measurements and vitals collected during care sessions.";

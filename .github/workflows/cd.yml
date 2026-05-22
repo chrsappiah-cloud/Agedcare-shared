@@ -21,6 +21,8 @@ env:
   CONFIGURATION: Release
   IPA_NAME: Agedcare-shared.ipa
   TEAM_ID: TM2WG7HH96
+  # Homebrew/MacPorts rsync breaks xcodebuild -exportArchive on self-hosted runners.
+  PATH: /usr/bin:/bin:/usr/sbin:/sbin
 
 jobs:
   archive-and-upload:

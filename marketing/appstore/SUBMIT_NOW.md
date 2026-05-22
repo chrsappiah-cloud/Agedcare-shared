@@ -1,26 +1,25 @@
 # App Store submission — do these steps in order
 
-## BLOCKER: API private key (2 minutes)
+## Build upload status
 
-`AuthKey_A863K5FF84.p8` is **not on this Mac yet**. Without it, CI cannot upload to TestFlight.
+**Build 1.0.4 (117) was uploaded to App Store Connect** from this Mac (Xcode session auth).
+Wait ~15 minutes for processing in TestFlight, then complete metadata and **Submit for Review** below.
 
-1. Open [App Store Connect → Integrations → API](https://appstoreconnect.apple.com/access/integrations/api)
-2. Download **AuthKey_A863K5FF84.p8** (one-time only) → save to `~/Downloads/`
-3. Run:
+For future CI uploads, still add `AuthKey_A863K5FF84.p8`:
 
 ```bash
-cd /Applications/Agedcare-shared
 ./scripts/setup_asc_secrets.sh ~/Downloads/AuthKey_A863K5FF84.p8
 gh workflow run cd.yml --ref ci/agedcare-release-automation -f marketing_version=1.0.4
 ```
 
-**Or** build and upload from this Mac:
+**Local re-upload** (if MacPorts rsync is installed, scripts force Apple `/usr/bin/rsync`):
 
 ```bash
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 ./scripts/local-release.sh
 ```
 
-Issuer ID (already in GitHub as `ASC_ISSUER_ID`): `70c46c69-5d6d-438d-b300-31df2b93163a`
+Issuer ID: `70c46c69-5d6d-438d-b300-31df2b93163a`
 
 ---
 
