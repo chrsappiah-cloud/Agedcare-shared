@@ -13,10 +13,17 @@ final class Agedcare_sharedUITests: XCTestCase {
 
     private var app: XCUIApplication!
     private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    private lazy var screenshotDirectoryURL: URL? = {
+        if let path = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"], !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        return URL(fileURLWithPath: "/Applications/Agedcare-shared/marketing/out/appstore", isDirectory: true)
+    }()
 
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        app.launchEnvironment["UITEST_ADMIN_ACCESS"] = "1"
         app.launch()
         dismissSystemAlerts()
         app.activate()
@@ -55,6 +62,159 @@ final class Agedcare_sharedUITests: XCTestCase {
             if !didTap { break }
         }
         return dismissed
+    }
+
+    private func saveScreenshot(named name: String) throws {
+        guard let directory = screenshotDirectoryURL else {
+            throw XCTSkip("SCREENSHOT_DIR was not provided")
+        }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let image = XCUIScreen.main.screenshot().pngRepresentation
+        try image.write(to: directory.appendingPathComponent("\(name).png"))
+    }
+
+    private func tapTab(named title: String) {
+        let direct = app.tabBars.buttons[title]
+        if direct.waitForExistence(timeout: 5) {
+            direct.tap()
+            return
+        }
+
+        let more = app.tabBars.buttons["More"]
+        if more.waitForExistence(timeout: 3) {
+            more.tap()
+            let candidates: [XCUIElement] = [
+                app.tables.cells.buttons[title],
+                app.tables.cells.staticTexts[title],
+                app.collectionViews.cells.buttons[title],
+                app.collectionViews.cells.staticTexts[title],
+                app.buttons[title],
+            ]
+            for candidate in candidates where candidate.waitForExistence(timeout: 5) {
+                candidate.tap()
+                return
+            }
+        }
+
+        XCTFail("Could not find tab or overflow item named \(title)")
+    }
+
+    private func tapVisibleTab(at index: Int) {
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5), "Expected a visible tab bar")
+        let button = tabBar.buttons.element(boundBy: index)
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "Expected tab item at index \(index)")
+        button.tap()
+    }
+
+    private func openOverflowItem(named title: String) {
+        let more = app.tabBars.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 5), "Expected More tab for overflow items")
+        more.tap()
+
+        let candidates: [XCUIElement] = [
+            app.tables.cells.buttons[title],
+            app.tables.cells.staticTexts[title],
+            app.collectionViews.cells.buttons[title],
+            app.collectionViews.cells.staticTexts[title],
+            app.buttons[title],
+        ]
+        for candidate in candidates where candidate.waitForExistence(timeout: 5) {
+            candidate.tap()
+            return
+        }
+
+        XCTFail("Could not find overflow item named \(title)")
+    }
+
+    private func goBack() {
+        let candidates: [XCUIElement] = [
+            app.navigationBars.buttons.element(boundBy: 0),
+            app.buttons["Back"],
+        ]
+        for candidate in candidates where candidate.waitForExistence(timeout: 2) {
+            candidate.tap()
+            return
+        }
+    }
+
+    private func enterText(_ text: String, into element: XCUIElement) {
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "Expected text entry field")
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) {
+            element.tap()
+        }
+        XCTAssertTrue(app.keyboards.element.waitForExistence(timeout: 5), "Expected keyboard focus")
+        element.typeText(text)
+    }
+
+    private func tapStaffTestingAccess() {
+        dismissSystemAlerts()
+
+        let candidates: [XCUIElement] = [
+            app.buttons["testing_admin@gvcare.com"],
+            app.buttons["ui_test_admin_access"],
+        ]
+
+        for candidate in candidates {
+            if candidate.waitForExistence(timeout: 10) {
+                if !candidate.isHittable {
+                    app.swipeUp()
+                }
+                if candidate.isHittable {
+                    candidate.tap()
+                } else {
+                    candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                }
+                dismissSystemAlerts()
+                return
+            }
+        }
+
+        XCTFail("Expected a staff testing access control on the sign-in sheet")
+    }
+
+    private func relaunch(profile: String? = nil, tab: String? = nil, destination: String? = nil) {
+        if app.state != .notRunning {
+            app.terminate()
+        }
+
+        app = XCUIApplication()
+        app.launchEnvironment["UITEST_ADMIN_ACCESS"] = "1"
+        if let profile {
+            app.launchEnvironment["UITEST_SCREENSHOT_PROFILE"] = profile
+        }
+        if let tab {
+            app.launchEnvironment["UITEST_SCREENSHOT_TAB"] = tab
+        }
+        if let destination {
+            app.launchEnvironment["UITEST_SCREENSHOT_DESTINATION"] = destination
+        }
+        app.launch()
+        dismissSystemAlerts()
+        app.activate()
+    }
+
+    private func scrollToElement(_ element: XCUIElement, maxSwipes: Int = 6) -> Bool {
+        if element.exists && element.isHittable {
+            return true
+        }
+
+        for _ in 0..<maxSwipes {
+            app.swipeUp()
+            if element.exists && element.isHittable {
+                return true
+            }
+        }
+
+        for _ in 0..<2 {
+            app.swipeDown()
+            if element.exists && element.isHittable {
+                return true
+            }
+        }
+
+        return element.exists && element.isHittable
     }
 
     // MARK: - Hero Page
@@ -101,6 +261,33 @@ final class Agedcare_sharedUITests: XCTestCase {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
+    }
+
+    @MainActor
+    func testGenerateAppStoreScreenshots() throws {
+        relaunch()
+        XCTAssertTrue(app.segmentedControls["panel_router"].waitForExistence(timeout: 10))
+        try saveScreenshot(named: "01_hero")
+
+        relaunch(profile: "admin@gvcare.com", tab: "home")
+        XCTAssertTrue(app.navigationBars["Residents"].waitForExistence(timeout: 20))
+        try saveScreenshot(named: "02_staff")
+
+        relaunch(profile: "admin@gvcare.com", tab: "alerts")
+        XCTAssertTrue(app.navigationBars["Open Alerts"].waitForExistence(timeout: 10))
+        try saveScreenshot(named: "03_alerts")
+
+        relaunch(profile: "admin@gvcare.com", tab: "participants")
+        XCTAssertTrue(app.navigationBars["Participants"].waitForExistence(timeout: 10))
+        try saveScreenshot(named: "04_participants")
+
+        relaunch(profile: "admin@gvcare.com", destination: "subscription")
+        XCTAssertTrue(app.navigationBars["Plans & Pricing"].waitForExistence(timeout: 10))
+        try saveScreenshot(named: "05_subscription")
+
+        relaunch(profile: "admin@gvcare.com", destination: "watch")
+        XCTAssertTrue(app.navigationBars["Watch Preview"].waitForExistence(timeout: 10))
+        try saveScreenshot(named: "06_watch")
     }
 
     // MARK: - Deep navigation flows (skipped pending TabView refactor)

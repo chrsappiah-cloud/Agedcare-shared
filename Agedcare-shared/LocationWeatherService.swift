@@ -26,6 +26,7 @@ struct WeatherSnapshot {
     var locationLastUpdated: Date?
     var weatherLastUpdated: Date?
     var roomTemperatureLastUpdated: Date?
+    var roomTemperatureStatusMessage: String = ""
     var lastUpdated: Date?
     var weatherSourceName: String = ""
     var locationSourceName: String = ""
@@ -101,6 +102,16 @@ struct WeatherSnapshot {
             return roomTemperatureSource.isEmpty ? "Home sensor" : roomTemperatureSource
         }
         return "Estimated from local weather"
+    }
+
+    func roomTemperatureSystemDescription() -> String {
+        if hasActualRoomTemperature {
+            return "\(roomTemperatureSourceDescription()) • live HomeKit data"
+        }
+        if !roomTemperatureStatusMessage.isEmpty {
+            return roomTemperatureStatusMessage
+        }
+        return roomTemperatureSourceDescription()
     }
 
     func liveStatusSummary(now: Date = Date()) -> String {
@@ -282,9 +293,20 @@ final class LocationWeatherService: NSObject, ObservableObject, CLLocationManage
                 self.snapshot.actualRoomTemperature = reading?.temperatureCelsius
                 self.snapshot.roomTemperatureSource = reading?.sourceName ?? ""
                 self.snapshot.roomTemperatureLastUpdated = reading?.updatedAt
+                if reading != nil {
+                    self.snapshot.roomTemperatureStatusMessage = ""
+                }
                 if let updatedAt = reading?.updatedAt {
                     self.snapshot.lastUpdated = updatedAt
                 }
+            }
+            .store(in: &cancellables)
+
+        roomTemperatureService.$errorMessage
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] message in
+                guard let self else { return }
+                self.snapshot.roomTemperatureStatusMessage = message ?? ""
             }
             .store(in: &cancellables)
     }

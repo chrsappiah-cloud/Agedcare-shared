@@ -21,6 +21,14 @@ All character counts assume the App Store Connect 2026 layout limits.
 | Secondary category | Health & Fitness |
 | Content rights — third-party content? | **No** |
 
+**App Store Connect blocker fixes:**
+
+- **Primary category:** select **Medical**
+- **Price tier:** select **Free**
+- These fields are managed in the **App Information / Pricing and Availability**
+  screens and must be saved in the browser by an account with the required App
+  Store Connect role.
+
 ## Pricing & availability
 
 - **Price tier**: Free (with in-app subscriptions for Care Pro / Care Team).

@@ -9,6 +9,10 @@ final class SessionViewModel: ObservableObject {
   private let requestFactory = BackendRequestFactory()
   private let testingPassword = "password"
 
+  init() {
+    configureLaunchStateIfNeeded()
+  }
+
   func setResident(facilityId: UUID, residentId: UUID) {
     UserDefaults.standard.set(facilityId.uuidString, forKey: "last_facility_id")
     UserDefaults.standard.set(residentId.uuidString, forKey: "last_resident_id")
@@ -128,6 +132,17 @@ final class SessionViewModel: ObservableObject {
     SupabaseAuthStore.shared.accessToken = nil
     SubscriptionService.shared.currentTier = .starter
     state = .onboarding
+  }
+
+  private func configureLaunchStateIfNeeded() {
+    guard
+      let screenshotProfile = ProcessInfo.processInfo.environment["UITEST_SCREENSHOT_PROFILE"],
+      let profile = AppHost.testingAccessProfile(email: screenshotProfile)
+    else {
+      return
+    }
+
+    signInForTesting(profile)
   }
 
   private func fallbackToTestingAccessIfAvailable(email: String, password: String) -> Bool {

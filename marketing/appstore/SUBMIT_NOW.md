@@ -2,8 +2,9 @@
 
 ## Build upload status
 
-**Build 1.0.4 (117) was uploaded to App Store Connect** from this Mac (Xcode session auth).
-Wait ~15 minutes for processing in TestFlight, then complete metadata and **Submit for Review** below.
+**Build 1.0.4 (118) is uploaded, processed, and attached** in App Store Connect.
+The remaining work is the browser-only privacy / declaration flow and the final
+**Submit for Review** click.
 
 For future CI uploads, still add `AuthKey_A863K5FF84.p8`:
 
@@ -43,7 +44,8 @@ Issuer ID: `70c46c69-5d6d-438d-b300-31df2b93163a`
 | Privacy nutrition label | `03_privacy_nutrition_label.md` or Section 5 in `08_…` |
 | Age rating (17+) | `06_age_rating_and_export.md` or Section 4 in `08_…` |
 | Review notes + demo account | `01_review_notes.md` or Section 7 in `08_…` |
-| Screenshots (6.7" iPhone) | `marketing/out/appstore_*.png` |
+| Screenshots (6.7" iPhone) | `marketing/out/appstore/` |
+| Screenshots (12.9" iPad) | `marketing/out/appstore-ipad/` |
 
 ### Attach build and submit
 
@@ -51,9 +53,11 @@ Issuer ID: `70c46c69-5d6d-438d-b300-31df2b93163a`
 ./scripts/submit-for-review.sh   # API submit if AuthKey_A863K5FF84.p8 exists; else opens ASC + clipboard
 ```
 
-1. **+ Build** → select **1.0.4 (117)** or latest CI build number
-2. **Submit for Review**
-3. Enable **Phased Release**; leave manual release off
+1. Verify build **1.0.4 (118)** is still attached
+2. Verify screenshots remain present for **6.7" iPhone** and **12.9" iPad**
+3. Complete any remaining yellow warnings (**App Privacy**, export, age rating, review info)
+4. **Submit for Review**
+5. Enable **Phased Release**; leave manual release off
 
 ### If rejected
 

@@ -4,7 +4,7 @@ Use this file when completing **TestFlight distribution**, **export compliance**
 **age rating**, **App Privacy**, and **App Store / Beta App Review** in
 [App Store Connect](https://appstoreconnect.apple.com/apps/6767978725).
 
-App: **AgedCare Monitor** · Bundle `wcs.Agedcare-shared` · Version **1.0.4** · Build **117**
+App: **AgedCare Monitor** · Bundle `wcs.Agedcare-shared` · Version **1.0.4** · Build **118**
 
 Open the right screens:
 
@@ -14,9 +14,9 @@ Open the right screens:
 
 ---
 
-## 1. TestFlight — Export compliance (build 117)
+## 1. TestFlight — Export compliance (build 118)
 
-**Path:** TestFlight → iOS → Build **117** → Manage → Export Compliance
+**Path:** TestFlight → iOS → Build **118** → Manage → Export Compliance
 
 | Question | Answer |
 |----------|--------|
@@ -40,7 +40,7 @@ may skip this prompt after the first confirmation.
 
 ## 2. TestFlight — What to Test (en-US)
 
-Paste from `02_what_to_test.md` (build **1.0.4 (117)** section).
+Paste from `02_what_to_test.md` (build **1.0.4 (118)** section).
 
 ---
 
@@ -67,7 +67,7 @@ Resident path shows a seeded demo resident with timeline, weather, and SOS.
 Monitoring (camera, mic, HealthKit, HomeKit, location) is opt-in per feature in
 staff settings — not requested on first launch.
 
-This build (1.0.4 / 117) is the App Store submission candidate. Export
+This build (1.0.4 / 118) is the App Store submission candidate. Export
 compliance: standard HTTPS/TLS only, exempt encryption.
 ```
 
@@ -107,6 +107,9 @@ compliance: standard HTTPS/TLS only, exempt encryption.
 ## 5. App Privacy (nutrition label)
 
 **Path:** App Privacy → Get Started / Edit
+
+**Important:** App Store Connect only unlocks this section for an **Admin** (or
+equivalent role with privacy permissions). This is still a browser-only step.
 
 **Collect data?** **Yes**
 
@@ -189,8 +192,12 @@ When App Store Connect asks during **Submit for Review**:
 
 **Path:** App Store → iOS App → Version **1.0.4** → Build
 
-1. **+** → select build **117** (processing must be complete).
-2. Confirm screenshots (6.7" iPhone minimum) — see `marketing/out/`.
+1. **+** → select build **118** (processing must be complete).
+2. Confirm screenshots:
+   - **6.7" iPhone** — `marketing/out/appstore/` (6 uploaded)
+   - **12.9" iPad** — `marketing/out/appstore-ipad/` (3 uploaded)
+   - **13" iPad (manual fallback asset set)** — `marketing/out/appstore-ipad13/`
+     (3 images at **2064 × 2752** for the new 13-inch slot shown in ASC)
 3. Complete all yellow warnings (export, privacy, age rating, review info).
 4. **Add for Review** → **Submit to App Review**.
 5. **Phased Release for Automatic Updates:** **Enable**.
@@ -213,7 +220,7 @@ Thank you for the feedback. AgedCare Monitor opens on the Hero Panel Router
 
 Seeded demo facility in AppHost.swift — no live backend required.
 
-Re-verified on iPhone 17 Pro Max, iOS 26.5, build 1.0.4 (117).
+Re-verified on iPhone 17 Pro Max, iOS 26.5, build 1.0.4 (118).
 
 Best regards,
 Christopher Appiah-Thompson
@@ -223,12 +230,16 @@ Christopher Appiah-Thompson
 
 ## 11. Checklist before you click Submit
 
-- [ ] Build **117** processed in TestFlight (no “Processing” badge)
+- [ ] Build **118** processed in TestFlight (no “Processing” badge)
 - [ ] Export compliance saved (Section 1)
 - [ ] Age rating **17+** saved (Section 4)
 - [ ] App Privacy published (Section 5)
-- [ ] Screenshots uploaded for 6.7" display
-- [ ] Build **117** attached to version **1.0.4**
+- [ ] Primary category saved as **Medical** (Section 6)
+- [ ] Price tier saved as **Free** (Section 6)
+- [x] Screenshots uploaded for **6.7" iPhone** (6 images)
+- [x] Screenshots uploaded for **12.9" iPad** (3 images)
+- [ ] 13-inch iPad screenshot uploaded in ASC if the web UI still shows that requirement
+- [ ] Build **118** attached to version **1.0.4**
 - [ ] App Review notes + demo account filled (Section 7)
 - [ ] Phased release enabled (Section 6)
 

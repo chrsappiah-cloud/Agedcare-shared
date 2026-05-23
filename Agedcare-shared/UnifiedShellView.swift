@@ -25,6 +25,27 @@ struct UnifiedShellView: View {
         case switchPanel   // returns to hero / role-selection page
     }
 
+    private var requestedLaunchTab: Tab? {
+        switch ProcessInfo.processInfo.environment["UITEST_SCREENSHOT_TAB"]?.lowercased() {
+        case "residents", "home":
+            return .home
+        case "navigate", "navigator":
+            return .navigator
+        case "alerts":
+            return .alerts
+        case "participants":
+            return .participants
+        case "bridge":
+            return .bridge
+        case "aimonitor", "ai-monitor":
+            return .aiMonitor
+        case "settings":
+            return .settings
+        default:
+            return nil
+        }
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             residentTab
@@ -39,7 +60,7 @@ struct UnifiedShellView: View {
         .tint(AppTheme.emeraldGreen)
         .overlay(alignment: .top) { handoffBanner }
         .onAppear {
-            selectedTab = .home
+            selectedTab = requestedLaunchTab ?? .home
             if case .staff(let staff) = mode {
                 handoff.startPolling(facilityId: staff.facilityId.uuidString)
             }

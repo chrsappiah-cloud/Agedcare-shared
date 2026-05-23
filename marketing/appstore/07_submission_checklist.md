@@ -13,14 +13,14 @@ App Store Connect. Tick each item.
 - [ ] PR #1 reviewed (CodeQL, CodeRabbit) and squash-merged to `main`
 - [x] `MARKETING_VERSION` agreed (`1.0.4`)
 - [x] `CURRENT_PROJECT_VERSION` higher than the last accepted TestFlight
-      build (`117`)
+      build
 
 ## Build & upload
 
 - [x] Archive + export succeeded locally (clean bundle, system `rsync` PATH)
-- [x] **1.0.4 (117)** uploaded to App Store Connect (2026-05-22, Xcode session)
+- [x] **1.0.4 (118)** uploaded to App Store Connect (2026-05-22, Xcode session)
 - [ ] `ASC_PRIVATE_KEY` in GitHub (for CI `cd.yml` on future tags)
-- [ ] Build **processed** in TestFlight (check App Store Connect — ~15 min)
+- [x] Build **processed** in TestFlight (build **118** is VALID and attached)
 
 ## TestFlight (you, in App Store Connect)
 
@@ -38,6 +38,8 @@ Use **`08_distribution_review_responses.md`** for every answer below.
 
 - [ ] App name, subtitle, category, copyright filled per
       `05_appstore_form_fields.md`
+- [ ] Primary category saved as **Medical**
+- [ ] Price tier saved as **Free**
 - [ ] Promotional text + Description + Keywords filled
 - [ ] Support URL, Marketing URL, Privacy Policy URL filled
 - [ ] **App Privacy** nutrition label (Section 5 / `03_privacy_nutrition_label.md`)
@@ -50,22 +52,29 @@ Use **`08_distribution_review_responses.md`** for every answer below.
 
 ## Screenshots (you, in App Store Connect)
 
-App Store Connect needs 6.7" iPhone screenshots minimum. Generate from the
-running build:
+Current uploaded screenshot sets:
 
+- [x] **6.7" iPhone** (`marketing/out/appstore/`)
+  - [x] Hero panel router
+  - [x] Staff residents list
+  - [x] Alerts
+  - [x] Participants
+  - [x] Subscription
+  - [x] Watch preview
+- [x] **12.9" iPad** (`marketing/out/appstore-ipad/`)
+  - [x] Hero panel router
+  - [x] Staff residents list
+  - [x] Subscription
+- [x] **13" iPad fallback assets** (`marketing/out/appstore-ipad13/`)
+  - [x] Hero panel router
+  - [x] Staff residents list
+  - [x] Subscription
+
+Automation used:
+
+```bash
+./scripts/upload-appstore-screenshots.sh
 ```
-xcrun simctl io 139FDF4B-D150-403E-B876-51EDEEA589C5 screenshot \
-  marketing/out/01_hero.png
-```
-
-Recommended set (one of each, 1284 × 2778 portrait):
-
-- [ ] Hero panel router (Resident + Staff cards)
-- [ ] Resident shell with weather card + SOS
-- [ ] Staff residents list (after admin sign-in)
-- [ ] Alert detail view with timeline
-- [ ] Settings → Subscription tier selection
-- [ ] (Optional) Watch companion dashboard
 
 ## Build attachment
 
@@ -97,6 +106,7 @@ Recommended set (one of each, 1284 × 2778 portrait):
 - Tag the release (`git tag vX.Y.Z && git push --tags`) → triggers `cd.yml`
 - Update `marketing/release_notes/` and `marketing/appstore/` text packs
 - Re-run unit + UI tests after each PR change
+- Generate and upload App Store screenshots through the ASC API
 
 ## What I (the AI agent) cannot do
 
@@ -104,5 +114,5 @@ Recommended set (one of each, 1284 × 2778 portrait):
 - Click "Submit for Review"
 - Answer the Age-Rating, Privacy, or Export-Compliance questionnaires (each
   is saved against your Team ID, not exposed via API)
-- Upload screenshots or App Previews
+- Upload App Previews
 - Respond to Resolution Center messages on your behalf

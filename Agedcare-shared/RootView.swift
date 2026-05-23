@@ -1,9 +1,21 @@
 import SwiftUI
 
 struct RootView: View {
+  private enum ScreenshotDestination: String {
+    case subscription
+    case watch
+  }
+
   @EnvironmentObject var container: DependencyContainer
   @StateObject private var session = SessionViewModel()
   @StateObject private var accessibilityManager = AccessibilityManager.shared
+
+  private var screenshotDestination: ScreenshotDestination? {
+    guard let raw = ProcessInfo.processInfo.environment["UITEST_SCREENSHOT_DESTINATION"]?.lowercased() else {
+      return nil
+    }
+    return ScreenshotDestination(rawValue: raw)
+  }
 
   var body: some View {
     Group {
@@ -32,15 +44,33 @@ struct RootView: View {
         .environmentObject(container)
         .environmentObject(HandoffService.shared)
       case .staff(let staff):
-        UnifiedShellView(
-          mode: .staff(staff),
-          session: session
-        )
-        .environmentObject(container)
-        .environmentObject(HandoffService.shared)
+        if let screenshotDestination {
+          screenshotDestinationView(for: screenshotDestination, staff: staff)
+        } else {
+          UnifiedShellView(
+            mode: .staff(staff),
+            session: session
+          )
+          .environmentObject(container)
+          .environmentObject(HandoffService.shared)
+        }
       }
     }
     .dynamicTypeSize(...DynamicTypeSize.accessibility5)
+  }
+
+  @ViewBuilder
+  private func screenshotDestinationView(for destination: ScreenshotDestination, staff: StaffUserModel) -> some View {
+    NavigationStack {
+      switch destination {
+      case .subscription:
+        UpcomingPlansView()
+      case .watch:
+        WatchPreviewView()
+      }
+    }
+    .environmentObject(container)
+    .environmentObject(HandoffService.shared)
   }
 }
 

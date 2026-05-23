@@ -778,6 +778,21 @@ struct BackendHealthProbeTests {
         #expect(!summary.contains("estimated"))
     }
 
+    @Test func weatherSnapshotRoomTemperatureSystemDescriptionShowsLiveHomeKitState() {
+        var snapshot = WeatherSnapshot()
+        snapshot.actualRoomTemperature = 22.4
+        snapshot.roomTemperatureSource = "Resident room sensor"
+
+        #expect(snapshot.roomTemperatureSystemDescription() == "Resident room sensor • live HomeKit data")
+    }
+
+    @Test func weatherSnapshotRoomTemperatureSystemDescriptionFallsBackToSensorStatusMessage() {
+        var snapshot = WeatherSnapshot()
+        snapshot.roomTemperatureStatusMessage = "Add a HomeKit temperature sensor or thermostat in the Home app to stream live room temperature."
+
+        #expect(snapshot.roomTemperatureSystemDescription() == snapshot.roomTemperatureStatusMessage)
+    }
+
     @Test func weatherSnapshotPrefersExplicitWeatherSourceDescription() {
         var snapshot = WeatherSnapshot()
         snapshot.weatherSourceName = "WeatherKit live"

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Submit AgedCare Monitor 1.0.4 (117) for App Store Review via API, or open ASC + clipboard.
+# Submit AgedCare Monitor for App Store Review via API, or open ASC + clipboard.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_ID="${ASC_APP_ID:-6767978725}"
 BUNDLE_ID="${ASC_BUNDLE_ID:-wcs.Agedcare-shared}"
 VERSION="${MARKETING_VERSION:-1.0.4}"
-BUILD="${BUILD_NUMBER:-117}"
+BUILD="${BUILD_NUMBER:-$(cd "$ROOT" && xcrun agvtool what-version -terse 2>/dev/null | tail -n 1 || echo 118)}"
 KEY_ID="${ASC_KEY_ID:-A863K5FF84}"
 ISSUER_ID="${ASC_ISSUER_ID:-70c46c69-5d6d-438d-b300-31df2b93163a}"
 
@@ -49,7 +49,7 @@ PY
 api_submit() {
   local p8="$1"
   python3 <<PY
-import json, ssl, time, urllib.error, urllib.request
+import json, ssl, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 try:
@@ -104,16 +104,55 @@ vers, _ = api(
     f"/apps/{app_id}/appStoreVersions?filter[platform]=IOS&limit=50",
 )
 target = None
+editable_candidate = None
 for v in vers.get("data", []):
-    if v.get("attributes", {}).get("versionString") == version:
+    attrs = v.get("attributes", {})
+    state = attrs.get("appStoreState")
+    version_string = attrs.get("versionString")
+    if version_string == version:
         target = v["id"]
-        state = v.get("attributes", {}).get("appStoreState")
         print(f"Version {version} id={target} state={state}")
         break
+    if state == "PREPARE_FOR_SUBMISSION" and editable_candidate is None:
+        editable_candidate = v
 if not target:
-    raise SystemExit(
-        f"Create version {version} in App Store Connect first, then re-run."
-    )
+    if editable_candidate is not None:
+        target = editable_candidate["id"]
+        current_version = editable_candidate.get("attributes", {}).get("versionString")
+        api(
+            "PATCH",
+            f"/appStoreVersions/{target}",
+            {
+                "data": {
+                    "type": "appStoreVersions",
+                    "id": target,
+                    "attributes": {"versionString": version},
+                }
+            },
+        )
+        print(
+            f"Updated editable version {current_version} -> {version} "
+            f"(id={target})."
+        )
+    else:
+        created, _ = api(
+            "POST",
+            "/appStoreVersions",
+            {
+                "data": {
+                    "type": "appStoreVersions",
+                    "attributes": {
+                        "platform": "IOS",
+                        "versionString": version,
+                    },
+                    "relationships": {
+                        "app": {"data": {"type": "apps", "id": app_id}}
+                    },
+                }
+            },
+        )
+        target = created["data"]["id"]
+        print(f"Created version {version} id={target}")
 
 # Builds for this app
 builds, _ = api(
@@ -170,8 +209,15 @@ try:
     print(json.dumps(sub, indent=2)[:1500])
 except SystemExit as e:
     msg = str(e)
-    if "409" in msg or "STATE" in msg.upper() or "READY" in msg.upper():
+    if (
+        "409" in msg
+        or "STATE" in msg.upper()
+        or "READY" in msg.upper()
+        or "FORBIDDEN_ERROR" in msg
+        or "does not allow 'CREATE'" in msg
+    ):
         print("API submit blocked — complete metadata/export/privacy in ASC, then click Submit.")
+        sys.exit(2)
     raise
 PY
 }
@@ -195,7 +241,20 @@ open_asc_manual() {
 cd "$ROOT"
 if P8="$(find_p8)"; then
   echo "Using API key ${KEY_ID} from ${P8}"
+  set +e
   api_submit "$P8"
+  status=$?
+  set -e
+  if [[ "$status" -eq 0 ]]; then
+    exit 0
+  fi
+  if [[ "$status" -eq 2 ]]; then
+    copy_review_notes | pbcopy
+    echo "App Review notes copied to clipboard."
+    open_asc_manual
+    exit 0
+  fi
+  exit "$status"
 else
   echo "No AuthKey_${KEY_ID}.p8 — manual submit in App Store Connect."
   echo "Add key: ./scripts/setup_asc_secrets.sh ~/Downloads/AuthKey_${KEY_ID}.p8"

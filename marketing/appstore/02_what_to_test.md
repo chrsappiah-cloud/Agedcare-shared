@@ -8,7 +8,7 @@ Keep under 4 000 characters.
 
 ---
 
-**Build 1.0.4 (117)**
+**Build 1.0.4 (118)**
 
 Thank you for joining the AgedCare Monitor beta on the **WCS Care** track. This
 build is the App Store submission candidate: Xcode 26.5, hardened production

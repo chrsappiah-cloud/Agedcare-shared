@@ -190,7 +190,7 @@ Manually release this version: OFF
 
 
 ================================================================================
-EXPORT COMPLIANCE (TestFlight → Build 117 → Manage, if prompted)
+EXPORT COMPLIANCE (TestFlight → Build 118 → Manage, if prompted)
 ================================================================================
 
 Uses encryption: Yes

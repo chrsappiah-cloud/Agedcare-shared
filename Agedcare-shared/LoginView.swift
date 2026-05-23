@@ -5,9 +5,16 @@ struct LoginView: View {
   @StateObject private var backendHealth = BackendHealthService.shared
   @State private var email = ""
   @State private var password = ""
+  private let isUITestSession =
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    || ProcessInfo.processInfo.environment["UITEST_ADMIN_ACCESS"] == "1"
 
   private var testingProfiles: [TestingAccessProfile] {
     AppHost.visibleTestingAccessProfiles
+  }
+
+  private var uiTestAdminProfile: TestingAccessProfile? {
+    AppHost.testingAccessProfile(email: "admin@gvcare.com") ?? AppHost.testingAccessProfiles.first
   }
 
   private var showPreviewSections: Bool {
@@ -27,6 +34,17 @@ struct LoginView: View {
         .font(.title.bold())
         .foregroundColor(AppTheme.textPrimary)
         .accessibilityAddTraits(.isHeader)
+
+      if isUITestSession, let profile = uiTestAdminProfile {
+        Button(action: {
+          session.signInForTesting(profile)
+        }) {
+          Label("Instant UI Test Access", systemImage: "bolt.fill")
+            .primaryButtonStyle()
+        }
+        .accessibilityHint("Signs in with the administrator testing profile")
+        .accessibilityIdentifier("ui_test_admin_access")
+      }
 
       TextField("Email", text: $email)
         .textContentType(.emailAddress)

@@ -200,7 +200,7 @@ struct WeatherCardView: View {
             )
             SystemStatusRow(
                 title: "Room temperature",
-                detail: service.snapshot.roomTemperatureSourceDescription(),
+                detail: service.snapshot.roomTemperatureSystemDescription(),
                 status: service.snapshot.hasActualRoomTemperature ? .ok : .pending
             )
             SystemStatusRow(
@@ -226,6 +226,12 @@ struct WeatherCardView: View {
             Text(service.snapshot.roomTemperatureSourceDescription())
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
+            if !service.snapshot.hasActualRoomTemperature,
+               !service.snapshot.roomTemperatureStatusMessage.isEmpty {
+                Text(service.snapshot.roomTemperatureStatusMessage)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
             if !service.snapshot.locationName.isEmpty {
                 Text(service.snapshot.locationName)
                     .font(.caption2)
@@ -234,7 +240,8 @@ struct WeatherCardView: View {
             Text(service.snapshot.locationSourceDescription())
                 .font(.caption2)
                 .foregroundStyle(AppTheme.textSecondary)
-            if !service.snapshot.hasActualRoomTemperature {
+            if !service.snapshot.hasActualRoomTemperature,
+               service.snapshot.roomTemperatureStatusMessage.isEmpty {
                 Text("Add a HomeKit temperature sensor or thermostat to show actual room temperature.")
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textSecondary)
