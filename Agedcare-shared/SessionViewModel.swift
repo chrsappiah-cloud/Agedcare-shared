@@ -6,7 +6,12 @@ final class SessionViewModel: ObservableObject {
   @Published var state: SessionState = .onboarding
   @Published var loginError: String?
 
-  private let baseURL = AppHost.baseURL
+  private let requestFactory = BackendRequestFactory()
+  private let testingPassword = "password"
+
+  init() {
+    configureLaunchStateIfNeeded()
+  }
 
   func setResident(facilityId: UUID, residentId: UUID) {
     UserDefaults.standard.set(facilityId.uuidString, forKey: "last_facility_id")
@@ -31,13 +36,11 @@ final class SessionViewModel: ObservableObject {
 
     do {
       // 1. Authenticate
-      var req = URLRequest(url: baseURL.appendingPathComponent("/auth/v1/token"))
-      req.httpMethod = "POST"
-      req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      var req = try requestFactory.makeAuthRequest(path: "auth/v1/token")
       let body: [String: String] = [
         "email": email, "password": password, "grant_type": "password",
       ]
-      req.httpBody = try JSONEncoder().encode(body)
+      try req.encodeJSONBody(body)
 
       let (data, resp) = try await URLSession.shared.data(for: req)
       guard let http = resp as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
@@ -51,17 +54,22 @@ final class SessionViewModel: ObservableObject {
       guard let userId = UUID(uuidString: loginResp.user.id) else {
         throw LoginError.invalidResponse("Invalid user ID format")
       }
-      var rpcReq = URLRequest(url: baseURL.appendingPathComponent("/rest/v1/rpc/get_staff_info"))
-      rpcReq.httpMethod = "POST"
-      rpcReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      rpcReq.setValue("Bearer \(loginResp.accessToken)", forHTTPHeaderField: "Authorization")
+      var rpcReq = try requestFactory.makeRPCRequest("get_staff_info")
       let rpcBody: [String: String] = ["p_user_id": loginResp.user.id]
-      rpcReq.httpBody = try JSONEncoder().encode(rpcBody)
+      try rpcReq.encodeJSONBody(rpcBody)
 
       let (staffData, staffResp) = try await URLSession.shared.data(for: rpcReq)
-      guard let staffHttp = staffResp as? HTTPURLResponse, staffHttp.statusCode == 200 else {
-        throw LoginError.staffNotFound
+      guard let staffHttp = staffResp as? HTTPURLResponse else {
+        throw LoginError.invalidResponse("Missing staff lookup response")
       }
+        guard staffHttp.statusCode == 200 else {
+          if staffHttp.statusCode == 404,
+            String(data: staffData, encoding: .utf8)?.contains("PGRST202") == true
+          {
+            throw LoginError.invalidResponse("Care records are still being prepared")
+          }
+          throw LoginError.staffNotFound
+        }
 
       let staffInfo = try JSONDecoder().decode(StaffInfoResponse.self, from: staffData)
       guard let facilityId = UUID(uuidString: staffInfo.facilityId) else {
@@ -72,22 +80,93 @@ final class SessionViewModel: ObservableObject {
         facilityId: facilityId,
         role: staffInfo.role,
         displayName: staffInfo.displayName,
-        email: loginResp.user.email
+        email: loginResp.user.email,
+        subscriptionTier: resolvedTier(for: staffInfo.role),
+        betaTrack: .care,
+        accessSource: .backend
       )
+      SubscriptionService.shared.currentTier = staff.subscriptionTier
       state = .staff(staff)
 
     } catch let error as LoginError {
-      loginError = error.localizedDescription
+      if fallbackToTestingAccessIfAvailable(email: email, password: password) {
+        return
+      }
+      loginError = error.userFacingMessage(fallback: "We couldn't complete sign in. Please try again.")
+      state = .onboarding
+    } catch let error as BackendConfigurationError {
+      if fallbackToTestingAccessIfAvailable(email: email, password: password) {
+        return
+      }
+      loginError = error.userFacingMessage(fallback: "Sign in isn't available right now. Please try again shortly.")
       state = .onboarding
     } catch {
-      loginError = "Connection failed. Check the server."
+      if fallbackToTestingAccessIfAvailable(email: email, password: password) {
+        return
+      }
+      loginError = error.userFacingMessage(fallback: "Sign in isn't available right now. Please try again shortly.")
       state = .onboarding
     }
   }
 
+  func signInForTesting(_ profile: TestingAccessProfile) {
+    loginError = nil
+    SupabaseAuthStore.shared.accessToken = nil
+
+    let staff = StaffUserModel(
+      id: UUID(),
+      facilityId: profile.facilityId,
+      role: profile.role,
+      displayName: profile.displayName,
+      email: profile.email,
+      subscriptionTier: profile.subscriptionTier,
+      betaTrack: profile.betaTrack,
+      accessSource: .localTesting,
+      accessNotes: profile.accessNotes
+    )
+    SubscriptionService.shared.currentTier = profile.subscriptionTier
+    state = .staff(staff)
+  }
+
   func logout() {
     SupabaseAuthStore.shared.accessToken = nil
+    SubscriptionService.shared.currentTier = .starter
     state = .onboarding
+  }
+
+  private func configureLaunchStateIfNeeded() {
+    guard
+      let screenshotProfile = ProcessInfo.processInfo.environment["UITEST_SCREENSHOT_PROFILE"],
+      let profile = AppHost.testingAccessProfile(email: screenshotProfile)
+    else {
+      return
+    }
+
+    signInForTesting(profile)
+  }
+
+  private func fallbackToTestingAccessIfAvailable(email: String, password: String) -> Bool {
+    guard
+      password == testingPassword,
+      let profile = AppHost.testingAccessProfile(email: email)
+    else {
+      return false
+    }
+
+    signInForTesting(profile)
+    loginError = nil
+    return true
+  }
+
+  private func resolvedTier(for role: String) -> SubscriptionTier {
+    switch role.lowercased() {
+    case "creator", "admin", "administrator":
+      return .careTeam
+    case "tester", "nurse", "carer", "caregiver":
+      return .carePro
+    default:
+      return .starter
+    }
   }
 }
 
@@ -99,8 +178,8 @@ enum LoginError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .invalidCredentials: return "Invalid email or password"
-    case .staffNotFound: return "Staff account not found"
-    case .invalidResponse(let msg): return "Server error: \(msg)"
+    case .staffNotFound: return "We couldn't open this staff account yet"
+    case .invalidResponse: return "We couldn't complete sign in. Please try again."
     }
   }
 }

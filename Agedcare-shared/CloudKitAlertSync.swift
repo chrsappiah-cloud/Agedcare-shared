@@ -17,7 +17,7 @@ public enum CloudKitSyncError: LocalizedError {
 }
 
 public final class CloudKitAlertSync: @unchecked Sendable {
-  public static var shared: CloudKitAlertSync? = nil
+  public static var shared: CloudKitAlertSync? = CloudKitAlertSync()
   public var container: CKContainer!
   public var sharedDB: CKDatabase!
 
@@ -36,8 +36,8 @@ public final class CloudKitAlertSync: @unchecked Sendable {
     throw CloudKitSyncError.containerNotConfigured
     #else
     container = CKContainer.default()
-    sharedDB = container.sharedCloudDatabase
     service = CloudKitService.shared
+    sharedDB = service.privateDB
     #endif
   }
 
@@ -49,7 +49,9 @@ public final class CloudKitAlertSync: @unchecked Sendable {
     residentId: String,
     type: String,
     priority: Int,
-    status: String = "open"
+    status: String = "open",
+    createdAt: Date = Date(),
+    assignedStaffId: String? = nil
   ) -> CKRecord {
     let record = CKRecord(recordType: Self.alertRecordType, recordID: CKRecord.ID(recordName: id))
     record["facilityId"] = facilityId
@@ -57,7 +59,8 @@ public final class CloudKitAlertSync: @unchecked Sendable {
     record["type"] = type
     record["priority"] = priority as CKRecordValue
     record["status"] = status
-    record["createdAt"] = Date()
+    record["createdAt"] = createdAt
+    record["assignedStaffId"] = assignedStaffId
     return record
   }
 
@@ -70,15 +73,32 @@ public final class CloudKitAlertSync: @unchecked Sendable {
       let createdAt = record["createdAt"] as? Date
     else { return nil }
 
+    let assignedStaffId = (record["assignedStaffId"] as? String).flatMap(UUID.init(uuidString:))
+
     return AlertModel(
-      id: Int64(abs(record.recordID.recordName.hash)),
+      id: alertID(from: record.recordID),
       residentId: UUID(uuidString: residentId) ?? UUID(),
       type: type,
       status: status,
       priority: priority,
       createdAt: createdAt,
-      assignedStaffId: nil
+      assignedStaffId: assignedStaffId
     )
+  }
+
+  private func alertID(from recordID: CKRecord.ID) -> Int64 {
+    let recordName = recordID.recordName
+    if let suffix = recordName.split(separator: "-", omittingEmptySubsequences: false).last,
+       let id = Int64(suffix) {
+      return id
+    }
+
+    var value: UInt64 = 1_469_598_103_934_665_603
+    for byte in recordName.utf8 {
+      value ^= UInt64(byte)
+      value &*= 1_099_511_628_211
+    }
+    return Int64(bitPattern: value)
   }
 
   // MARK: - Sync operations
@@ -88,19 +108,22 @@ public final class CloudKitAlertSync: @unchecked Sendable {
     let record = makeAlertRecord(
       id: "alert-\(alert.id)",
       facilityId: facilityId.uuidString,
-      residentId: alert.residentId.uuidString,
-      type: alert.type,
-      priority: alert.priority,
-      status: alert.status
-    )
+        residentId: alert.residentId.uuidString,
+        type: alert.type,
+        priority: alert.priority,
+        status: alert.status,
+        createdAt: alert.createdAt,
+        assignedStaffId: alert.assignedStaffId?.uuidString
+      )
     try await service.save(record, in: sharedDB)
   }
 
-  public func updateAlertStatus(alertId: Int64, status: String) async throws {
+  public func updateAlertStatus(alertId: Int64, status: String, assignedStaffId: UUID? = nil) async throws {
     try setup()
     let recordID = CKRecord.ID(recordName: "alert-\(alertId)")
     let record = try await sharedDB.record(for: recordID)
     record["status"] = status
+    record["assignedStaffId"] = assignedStaffId?.uuidString
     try await service.save(record, in: sharedDB)
   }
 
@@ -115,6 +138,8 @@ public final class CloudKitAlertSync: @unchecked Sendable {
 
   public func subscribeToChanges() async throws {
     try setup()
+    let accountStatus = try await container.accountStatus()
+    guard accountStatus == .available else { return }
     let sub = CKQuerySubscription(
       recordType: Self.alertRecordType,
       predicate: NSPredicate(value: true),
@@ -147,7 +172,8 @@ public final class CloudKitAlertSync: @unchecked Sendable {
 
   public func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
     do { try setup() } catch { return }
-    let notification = CKNotification(fromRemoteNotificationDictionary: userInfo as! [String: NSObject])
+    guard let notificationUserInfo = userInfo as? [String: NSObject] else { return }
+    let notification = CKNotification(fromRemoteNotificationDictionary: notificationUserInfo)
     guard
       let queryNotification = notification as? CKQueryNotification,
       let recordID = queryNotification.recordID

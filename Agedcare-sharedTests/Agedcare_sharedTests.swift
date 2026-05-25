@@ -17,12 +17,16 @@ struct StaffUserModelTests {
         #expect(staff.role == "nurse")
         #expect(staff.displayName == "Jane")
         #expect(staff.email == "jane@test.com")
+        #expect(staff.subscriptionTier == .starter)
+        #expect(staff.accessSource == .backend)
     }
 
     @Test func staffModelWithNilOptionals() {
         let staff = StaffUserModel(id: UUID(), facilityId: UUID(), role: "admin", displayName: nil, email: nil)
         #expect(staff.displayName == nil)
         #expect(staff.email == nil)
+        #expect(staff.betaTrack == nil)
+        #expect(staff.accessNotes == nil)
     }
 }
 
@@ -168,6 +172,19 @@ struct SubscriptionTierTests {
         #expect(SubscriptionTier.starter.productId == nil)
     }
 
+    @Test func productIdMapsToTier() {
+        #expect(SubscriptionTier.from(productId: "wcs.Agedcare_shared.care_pro_monthly") == .carePro)
+        #expect(SubscriptionTier.from(productId: "wcs.Agedcare_shared.care_team_annual") == .careTeam)
+        #expect(SubscriptionTier.from(productId: "unknown.plan") == nil)
+    }
+
+    @Test func serverValueMapsToTier() {
+        #expect(SubscriptionTier.from(serverValue: "care_pro") == .carePro)
+        #expect(SubscriptionTier.from(serverValue: "CARE_TEAM") == .careTeam)
+        #expect(SubscriptionTier.from(serverValue: "starter") == .starter)
+        #expect(SubscriptionTier.from(serverValue: "enterprise") == nil)
+    }
+
     @Test func rawValueRoundTrip() {
         for tier in SubscriptionTier.allCases {
             #expect(SubscriptionTier(rawValue: tier.rawValue) == tier)
@@ -182,6 +199,17 @@ struct SubscriptionTierTests {
     @Test func careTeamFeaturesIncludeMultiUser() {
         let features = SubscriptionTier.careTeam.features.joined(separator: " ").lowercased()
         #expect(features.contains("multi-user") || features.contains("staff"))
+    }
+
+    @Test func testingAccessProfilesCoverAllSubscriptionTiers() {
+        let tiers = Set(AppHost.testingAccessProfiles.map(\.subscriptionTier))
+        #expect(tiers.contains(.starter))
+        #expect(tiers.contains(.carePro))
+        #expect(tiers.contains(.careTeam))
+    }
+
+    @Test func testingAccessProfilesIncludeAccessNotesForInvitations() {
+        #expect(AppHost.testingAccessProfiles.allSatisfy { !$0.accessNotes.isEmpty })
     }
 }
 
@@ -312,6 +340,48 @@ struct ShellModeTests {
     }
 }
 
+@Suite("WatchConnectivity Payload Tests")
+struct WatchConnectivityPayloadTests {
+    @Test func residentWatchPayloadStoresCriticalMonitoringState() {
+        let payload = WatchConnectivityService.WatchResidentSyncPayload(
+            facilityId: UUID().uuidString,
+            residentId: UUID().uuidString,
+            statusText: "Fall Detected",
+            isMonitoringActive: true,
+            isRecordingIncident: true,
+            fallRisk: "high",
+            heartRate: "118 bpm",
+            bloodOxygen: "96%",
+            locationName: "Resident Wing A",
+            movementSummary: "Moving at 1.2 km/h",
+            recordedAt: ISO8601DateFormatter().string(from: Date())
+        )
+
+        #expect(payload.isMonitoringActive)
+        #expect(payload.isRecordingIncident)
+        #expect(payload.statusText == "Fall Detected")
+        #expect(payload.heartRate == "118 bpm")
+    }
+
+    @Test func watchAlertSummaryEncodesCoreAlertFields() throws {
+        let summary = WatchConnectivityService.WatchAlertSummary(
+            id: 42,
+            residentId: UUID().uuidString,
+            type: "fall",
+            status: "open",
+            priority: 3,
+            createdAt: "2026-05-12T10:00:00Z"
+        )
+
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(WatchConnectivityService.WatchAlertSummary.self, from: data)
+
+        #expect(decoded.id == 42)
+        #expect(decoded.type == "fall")
+        #expect(decoded.priority == 3)
+    }
+}
+
 // MARK: - AppHost Tests
 
 @Suite("AppHost Tests")
@@ -319,6 +389,45 @@ struct AppHostTests {
     @Test func baseURLIsValid() {
         let url = AppHost.baseURL
         #expect(url.scheme == "http" || url.scheme == "https")
+    }
+
+    @Test func testingAccessProfilesCoverCreatorAdminAndTesters() {
+        let profiles = AppHost.testingAccessProfiles
+        #expect(profiles.contains { $0.accessKind == .creator })
+        #expect(profiles.contains { $0.accessKind == .administrator })
+        #expect(profiles.filter { $0.accessKind == .tester }.count >= 3)
+        #expect(profiles.map(\.subscriptionTier).contains(.starter))
+        #expect(profiles.map(\.subscriptionTier).contains(.carePro))
+        #expect(profiles.map(\.subscriptionTier).contains(.careTeam))
+    }
+
+    @Test func residentDemoFacilityAvailable() {
+        #expect(AppHost.defaultResidentDemoFacilityID != nil)
+    }
+
+    @Test func previewAccessRemainsVisibleInTestContext() {
+        #expect(AppHost.previewAccessEnabled)
+        #expect(AppHost.visibleTestingAccessProfiles.count == AppHost.testingAccessProfiles.count)
+        #expect(AppHost.visibleDemoAccessProfiles.count == AppHost.demoAccessProfiles.count)
+    }
+}
+
+@Suite("Resident Demo Store Tests")
+struct ResidentDemoStoreTests {
+    @Test func testingFacilitiesHaveResidents() {
+        let store = DemoResidentStore.shared
+        for profile in AppHost.testingAccessProfiles {
+            let residents = store.residents(facilityId: profile.facilityId)
+            #expect(residents?.isEmpty == false)
+        }
+    }
+
+    @Test func demoResidentsProvideTimelineAndCounts() {
+        let store = DemoResidentStore.shared
+        let facilityID = AppHost.defaultResidentDemoFacilityID!
+        let resident = try! #require(store.residents(facilityId: facilityID)?.first)
+        #expect(store.timeline(residentId: resident.id, limit: 10)?.isEmpty == false)
+        #expect(store.fallCount(residentId: resident.id, days: 30) != nil)
     }
 }
 
@@ -417,13 +526,15 @@ struct RevenueValidationTests {
 @Suite("CloudKit Live Probes")
 struct CloudKitLiveProbeTests {
 
-    @Test func defaultContainerResolves() {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func defaultContainerResolves() {
         let container = CKContainer.default()
         #expect(!container.containerIdentifier.isEmptyOrNil,
                 "CKContainer.default() must resolve a container identifier from the app entitlements")
     }
 
-    @Test func privateAndPublicDatabasesAccessible() {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func privateAndPublicDatabasesAccessible() {
         let container = CKContainer.default()
         let priv = container.privateCloudDatabase
         let pub  = container.publicCloudDatabase
@@ -431,7 +542,8 @@ struct CloudKitLiveProbeTests {
         #expect(pub.databaseScope  == .public)
     }
 
-    @Test func accountStatusIsQueryable() async throws {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func accountStatusIsQueryable() async throws {
         let container = CKContainer.default()
         let status = try await container.accountStatus()
         let valid: [CKAccountStatus] = [.available, .noAccount, .restricted, .couldNotDetermine, .temporarilyUnavailable]
@@ -439,12 +551,15 @@ struct CloudKitLiveProbeTests {
                 "accountStatus() must return a known CKAccountStatus value (got rawValue \(status.rawValue))")
     }
 
-    @Test func cloudKitServiceSingletonExposesDatabases() {
+    @Test(.enabled(if: liveCloudKitProbeEnabled))
+    func cloudKitServiceSingletonExposesDatabases() {
         let svc = CloudKitService.shared
         #expect(svc.privateDB.databaseScope == .private)
         #expect(svc.publicDB.databaseScope  == .public)
     }
 }
+
+private let liveCloudKitProbeEnabled = ProcessInfo.processInfo.environment["RUN_LIVE_CLOUDKIT_TESTS"] == "1"
 
 private extension Optional where Wrapped == String {
     var isEmptyOrNil: Bool { (self ?? "").isEmpty }
@@ -542,8 +657,8 @@ struct BackendHealthProbeTests {
     @Test func weatherSnapshotFormattedRoomTemp() {
         var snap = WeatherSnapshot()
         snap.outdoorTemperature = 30.0
-        // estimated = (30 + 22) / 2 = 26.0
-        #expect(snap.formattedRoomTemp() == "26.0 °C")
+        // estimated = (30 + 22 + 22) / 3 = 24.7
+        #expect(snap.formattedRoomTemp() == "24.7 °C")
     }
 
     @Test func weatherSnapshotFormattedHumidity() {
@@ -564,6 +679,242 @@ struct BackendHealthProbeTests {
         snap.outdoorTemperature = 0.0   // 0 °C = 32 °F
         let result = snap.formattedOutdoorTemp(unit: .fahrenheit)
         #expect(result == "32.0 °F")
+    }
+
+    @Test func incidentLocationSnapshotPreservesMovementMetadata() {
+        var snap = WeatherSnapshot()
+        snap.locationName = "Resident Wing A"
+        snap.coordinate = .init(latitude: -37.8136, longitude: 144.9631)
+        snap.currentSpeedMetersPerSecond = 1.2
+        snap.totalDistanceMeters = 18
+        snap.actualRoomTemperature = 23.4
+        snap.roomTemperatureSource = "Home sensor"
+
+        let incident = IncidentLocationSnapshot(weatherSnapshot: snap)
+
+        #expect(incident.locationName == "Resident Wing A")
+        #expect(incident.latitude == -37.8136)
+        #expect(incident.longitude == 144.9631)
+        #expect(incident.roomTemperatureCelsius == 23.4)
+        #expect(incident.roomTemperatureSource == "Home sensor")
+        #expect(incident.movementSummary.contains("Moving"))
+    }
+
+    @Test func incidentLocationSnapshotMovementSummaryHandlesNoMovementEdge() {
+        let incident = IncidentLocationSnapshot(weatherSnapshot: WeatherSnapshot())
+
+        #expect(incident.movementSummary == "Movement not yet established")
+        #expect(incident.coordinateDescription == "Location unavailable")
+    }
+
+    @Test func weatherSnapshotBackendMetricsIncludeLocationWeatherAndMovement() {
+        var snap = WeatherSnapshot()
+        snap.outdoorTemperature = 18.5
+        snap.actualRoomTemperature = 22.3
+        snap.humidity = 0.64
+        snap.currentSpeedMetersPerSecond = 1.4
+        snap.headingDegrees = 180
+        snap.totalDistanceMeters = 42
+        snap.coordinate = .init(latitude: -37.8136, longitude: 144.9631)
+
+        let metrics = Dictionary(uniqueKeysWithValues: snap.backendMetrics().map { ($0.metric, $0.value) })
+
+        #expect(metrics["outdoor_temperature"] == 18.5)
+        #expect(metrics["room_temperature"] == 22.3)
+        #expect(metrics["humidity_percent"] == 64)
+        #expect(metrics["movement_speed_mps"] == 1.4)
+        #expect(metrics["heading_degrees"] == 180)
+        #expect(metrics["distance_meters"] == 42)
+        #expect(metrics["latitude"] == -37.8136)
+        #expect(metrics["longitude"] == 144.9631)
+    }
+
+    @Test func incidentRecordingDefaultsToLocalStatusWhenLegacyDataHasNoSyncState() {
+        let recording = IncidentRecording(
+            id: UUID(),
+            type: "fall",
+            timestamp: Date(),
+            fileURL: URL(fileURLWithPath: "/tmp/fall.mov"),
+            residentId: nil,
+            duration: 30,
+            hasPreIncidentFootage: true,
+            facilityId: nil,
+            snapshotURL: nil,
+            locationSnapshot: nil,
+            syncStatus: nil,
+            syncError: nil,
+            backendAnalysisID: nil,
+            backendSummary: nil,
+            backendMediaURL: nil,
+            lastSyncedAt: nil
+        )
+
+        #expect(recording.resolvedSyncStatus == IncidentSyncStatus.localOnly)
+    }
+
+    @Test func weatherSnapshotLiveStatusShowsFreshnessAndEstimatedRoomTemp() {
+        var snapshot = WeatherSnapshot()
+        let now = Date()
+        snapshot.locationLastUpdated = now.addingTimeInterval(-10)
+        snapshot.weatherLastUpdated = now.addingTimeInterval(-75)
+
+        let summary = snapshot.liveStatusSummary(now: now)
+
+        #expect(summary.contains("Location live"))
+        #expect(summary.contains("Weather live"))
+        #expect(summary.contains("Room temp estimated"))
+    }
+
+    @Test func weatherSnapshotLiveStatusUsesRoomSensorTimestampWhenAvailable() {
+        var snapshot = WeatherSnapshot()
+        let now = Date()
+        snapshot.actualRoomTemperature = 22.4
+        snapshot.roomTemperatureSource = "Resident room sensor"
+        snapshot.roomTemperatureLastUpdated = now.addingTimeInterval(-20)
+
+        let summary = snapshot.liveStatusSummary(now: now)
+
+        #expect(summary.contains("Room sensor live"))
+        #expect(!summary.contains("estimated"))
+    }
+
+    @Test func weatherSnapshotRoomTemperatureSystemDescriptionShowsLiveHomeKitState() {
+        var snapshot = WeatherSnapshot()
+        snapshot.actualRoomTemperature = 22.4
+        snapshot.roomTemperatureSource = "Resident room sensor"
+
+        #expect(snapshot.roomTemperatureSystemDescription() == "Resident room sensor • live HomeKit data")
+    }
+
+    @Test func weatherSnapshotRoomTemperatureSystemDescriptionFallsBackToSensorStatusMessage() {
+        var snapshot = WeatherSnapshot()
+        snapshot.roomTemperatureStatusMessage = "Add a HomeKit temperature sensor or thermostat in the Home app to stream live room temperature."
+
+        #expect(snapshot.roomTemperatureSystemDescription() == snapshot.roomTemperatureStatusMessage)
+    }
+
+    @Test func weatherSnapshotPrefersExplicitWeatherSourceDescription() {
+        var snapshot = WeatherSnapshot()
+        snapshot.weatherSourceName = "WeatherKit live"
+
+        #expect(snapshot.weatherSourceDescription() == "WeatherKit live")
+    }
+
+    @Test func weatherSnapshotPrefersExplicitLocationSourceDescription() {
+        var snapshot = WeatherSnapshot()
+        snapshot.locationSourceName = "OpenStreetMap reverse geocode backup"
+
+        #expect(snapshot.locationSourceDescription() == "OpenStreetMap reverse geocode backup")
+    }
+
+    @Test func weatherSnapshotFallsBackToDefaultLocationSourceDescription() {
+        let snapshot = WeatherSnapshot()
+
+        #expect(snapshot.locationSourceDescription() == "MapKit reverse geocode")
+    }
+
+    @Test func openMeteoConditionMapsThunderstormCodes() {
+        let condition = LocationWeatherService.openMeteoCondition(for: 95)
+
+        #expect(condition.description == "Thunderstorm")
+        #expect(condition.symbolName == "cloud.bolt.rain.fill")
+    }
+
+    @Test func openMeteoConditionMapsClearSkyCodes() {
+        let condition = LocationWeatherService.openMeteoCondition(for: 0)
+
+        #expect(condition.description == "Clear")
+        #expect(condition.symbolName == "sun.max.fill")
+    }
+
+    @Test func openMeteoConditionMapsUnknownCodesToLocalConditions() {
+        let condition = LocationWeatherService.openMeteoCondition(for: 999)
+
+        #expect(condition.description == "Local conditions")
+        #expect(condition.symbolName == "cloud.sun.fill")
+    }
+
+    @Test func incidentRecordingStorageRouteSummaryIncludesAllAvailableRoutes() {
+        let recording = IncidentRecording(
+            id: UUID(),
+            type: "fall",
+            timestamp: Date(),
+            fileURL: URL(fileURLWithPath: "/tmp/incident.mov"),
+            residentId: UUID(),
+            duration: 30,
+            hasPreIncidentFootage: true,
+            facilityId: UUID(),
+            snapshotURL: nil,
+            locationSnapshot: nil,
+            syncStatus: .pendingUpload,
+            cloudKitRecordName: "cloudkit-123",
+            supabaseIncidentID: UUID(),
+            lastSyncedAt: Date()
+        )
+
+        var enriched = recording
+        enriched.backendMediaURL = URL(string: "https://example.com/video.mov")
+
+        #expect(enriched.storageRouteSummary == "Care database synced • iCloud backup ready • Secure video link ready")
+    }
+
+    @Test func incidentVideoEnhancementPromptIncludesIncidentContext() {
+        var weather = WeatherSnapshot()
+        weather.locationName = "Resident Wing A"
+        weather.coordinate = .init(latitude: -37.8136, longitude: 144.9631)
+        weather.totalDistanceMeters = 12
+        weather.actualRoomTemperature = 22.8
+        weather.roomTemperatureSource = "Home sensor"
+        let location = IncidentLocationSnapshot(weatherSnapshot: weather)
+
+        let prompt = AIMonitoringService.incidentVideoEnhancementPrompt(
+            incidentType: "fall_detected",
+            locationSnapshot: location,
+            includesSnapshot: true
+        )
+
+        #expect(prompt.contains("fall detected"))
+        #expect(prompt.contains("Resident Wing A"))
+        #expect(prompt.contains("Snapshot frame attached: yes"))
+        #expect(prompt.contains("Room temperature: 22.8 C"))
+    }
+
+    @Test func mergedAnalysisAddsExternalInsightsWithoutDuplicates() {
+        let primary = MediaAnalysisResult(
+            id: "analysis-1",
+            facility_id: "facility-1",
+            resident_id: "resident-1",
+            resident_name: nil,
+            media_url: "https://example.com/video.mov",
+            media_type: "video",
+            analysis_status: "completed",
+            summary: "Primary summary",
+            confidence: 0.55,
+            insights: ["Fall risk observed"],
+            detected_keywords: ["fall"],
+            sentiment: nil,
+            safety_flags: [MediaAnalysisResult.SafetyFlag(type: "hazard", detail: "Loose rug")],
+            transcribed_text: nil,
+            created_at: "2026-05-13T00:00:00Z",
+            completed_at: "2026-05-13T00:01:00Z"
+        )
+
+        let merged = AIMonitoringService.mergeAnalysis(
+            primary: primary,
+            summary: "Enhanced summary",
+            confidence: 0.82,
+            insights: ["Loose rug near resident", "Fall risk observed"],
+            detectedKeywords: ["rug", "fall"],
+            safetyFlags: [MediaAnalysisResult.SafetyFlag(type: "hazard", detail: "Loose rug")],
+            providerName: "OpenAI-compatible open-source model"
+        )
+
+        #expect(merged.summary == "Enhanced summary")
+        #expect(merged.confidence == 0.82)
+        #expect(merged.insights.contains("Enhanced via OpenAI-compatible open-source model"))
+        #expect(merged.insights.filter { $0 == "Fall risk observed" }.count == 1)
+        #expect(merged.detected_keywords.filter { $0 == "fall" }.count == 1)
+        #expect(merged.safety_flags.count == 1)
     }
 
     /// The Vercel marketing site (also linked from the app footer) must respond.

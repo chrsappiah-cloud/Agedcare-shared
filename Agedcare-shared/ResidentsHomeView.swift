@@ -7,6 +7,7 @@ struct ResidentsHomeView: View {
   @State private var residents: [ResidentModel] = []
   @State private var isLoading = false
   @State private var loadError: String?
+  private let refreshIntervalNanoseconds: UInt64 = 20_000_000_000
 
   var body: some View {
     NavigationStack {
@@ -31,7 +32,12 @@ struct ResidentsHomeView: View {
       .navigationTitle("Residents")
       .searchable(text: $searchText)
       .refreshable { await loadResidents() }
-      .task { await loadResidents() }
+      .task { await liveRefreshLoop() }
+      .safeAreaInset(edge: .top) {
+        if staff.accessSource == .localTesting {
+          demoResidentBanner
+        }
+      }
       .overlay {
         if isLoading { ProgressView("Loading\u{2026}") }
         else if let error = loadError { Text(error).foregroundColor(.red).padding() }
@@ -40,9 +46,26 @@ struct ResidentsHomeView: View {
     }
   }
 
+  private func liveRefreshLoop() async {
+    while !Task.isCancelled {
+      await loadResidents()
+      try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
+    }
+  }
+
   private var filteredResidents: [ResidentModel] {
     guard !searchText.isEmpty else { return residents }
     return residents.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+  }
+
+  private var demoResidentBanner: some View {
+    Text("Preview resident records are ready for this care session.")
+      .font(.caption)
+      .foregroundColor(AppTheme.textPrimary)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity)
+      .background(AppTheme.emeraldGreen.opacity(0.14))
   }
 
   private func loadResidents() async {
@@ -60,8 +83,9 @@ struct ResidentsHomeView: View {
           dateOfBirth: dto.date_of_birth.flatMap { ISO8601DateFormatter().date(from: $0) }
         )
       }
+      loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      loadError = "Resident details are temporarily unavailable. Pull to refresh and try again."
     }
   }
 }

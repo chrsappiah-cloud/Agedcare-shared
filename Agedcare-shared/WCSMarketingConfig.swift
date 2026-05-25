@@ -141,7 +141,9 @@ struct WCSMarketingConfig {
     static let termsURL = URL(string: "https://wcs-full.vercel.app/terms")!
     static let allAppsURL = URL(string: "https://wcs-full.vercel.app/apps")!
     static let donateURL = URL(string: "https://wcs-full.vercel.app/donate")!
-    static let testFlightURL = URL(string: "https://testflight.apple.com/join/WCSCare")!
+    static let testingSubscriptionProgramURL = URL(string: "https://wcs-full.vercel.app/testflight/testing-subscription-programme")!
+    static let directTestFlightJoinURL = URL(string: "https://testflight.apple.com/join/WCSCare")!
+    static let testFlightURL = testingSubscriptionProgramURL
     static let analyticsEndpoint: URL? = URL(string: "https://wcs-full.vercel.app/api/analytics")
     static let analyticsRemoteEnabled: Bool = false
     static let feedbackFormURL = URL(string: "https://wcs-full.vercel.app/beta-feedback")!
@@ -417,7 +419,8 @@ struct WCSMarketingConfig {
         Apps available on TestFlight:
         \(appList)
 
-        Join our TestFlight beta: \(testFlightURL.absoluteString)
+        Join our testing subscription programme: \(testingSubscriptionProgramURL.absoluteString)
+        Direct TestFlight access: \(directTestFlightJoinURL.absoluteString)
         Browse all apps: \(allAppsURL.absoluteString)
 
         Your feedback helps us build something genuinely useful.

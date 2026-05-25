@@ -16,6 +16,7 @@ struct UnifiedShellView: View {
 
     enum Tab: Hashable {
         case home
+        case navigator
         case alerts
         case participants
         case bridge
@@ -24,9 +25,31 @@ struct UnifiedShellView: View {
         case switchPanel   // returns to hero / role-selection page
     }
 
+    private var requestedLaunchTab: Tab? {
+        switch ProcessInfo.processInfo.environment["UITEST_SCREENSHOT_TAB"]?.lowercased() {
+        case "residents", "home":
+            return .home
+        case "navigate", "navigator":
+            return .navigator
+        case "alerts":
+            return .alerts
+        case "participants":
+            return .participants
+        case "bridge":
+            return .bridge
+        case "aimonitor", "ai-monitor":
+            return .aiMonitor
+        case "settings":
+            return .settings
+        default:
+            return nil
+        }
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             residentTab
+            navigatorTab
             alertsTab
             participantsTab
             bridgeTab
@@ -37,7 +60,7 @@ struct UnifiedShellView: View {
         .tint(AppTheme.emeraldGreen)
         .overlay(alignment: .top) { handoffBanner }
         .onAppear {
-            selectedTab = isStaff ? .alerts : .home
+            selectedTab = requestedLaunchTab ?? .home
             if case .staff(let staff) = mode {
                 handoff.startPolling(facilityId: staff.facilityId.uuidString)
             }
@@ -48,7 +71,7 @@ struct UnifiedShellView: View {
         .onChange(of: selectedTab) { _, newTab in
             // Intercept the Switch Panel tap and navigate to the hero page
             guard newTab == .switchPanel else { return }
-            selectedTab = isStaff ? .alerts : .home
+            selectedTab = .home
             if isStaff { handoff.stopPolling() }
             session.state = .onboarding
         }
@@ -79,13 +102,36 @@ struct UnifiedShellView: View {
             switch mode {
             case .resident(let facilityId, let residentId):
                 ResidentShellView(facilityId: facilityId, residentId: residentId)
-            case .staff:
-                ResidentPreviewForStaff()
+            case .staff(let staff):
+                ResidentsHomeView(staff: staff)
             }
         }
-        .tabItem { Label("Home", systemImage: "heart.circle.fill") }
+        .tabItem {
+            Label(
+                isStaff ? "Residents" : "Home",
+                systemImage: isStaff ? "person.3.fill" : "heart.circle.fill"
+            )
+        }
         .tag(Tab.home)
-        .accessibilityLabel("Home tab")
+        .accessibilityLabel(isStaff ? "Residents tab" : "Home tab")
+    }
+
+    @ViewBuilder
+    private var navigatorTab: some View {
+        NavigationStack {
+            NavigatorPanelView(
+                isStaff: isStaff,
+                onSelectTab: { tab in
+                    selectedTab = tab
+                },
+                onSwitchPanel: {
+                    selectedTab = .switchPanel
+                }
+            )
+        }
+        .tabItem { Label("Navigate", systemImage: "square.grid.2x2.fill") }
+        .tag(Tab.navigator)
+        .accessibilityLabel("Navigator tab")
     }
 
     @ViewBuilder
@@ -287,58 +333,105 @@ struct UnifiedShellView: View {
     }
 }
 
-// MARK: - Resident Preview (shown to Staff on Home tab)
+struct NavigatorPanelView: View {
+    let isStaff: Bool
+    let onSelectTab: (UnifiedShellView.Tab) -> Void
+    let onSwitchPanel: () -> Void
 
-struct ResidentPreviewForStaff: View {
     var body: some View {
-        NavigationStack {
+        ScrollView {
             VStack(spacing: 24) {
-                Image(systemName: "heart.circle.fill")
-                    .font(.system(size: 60))
-                    .foregroundStyle(AppTheme.emeraldRed)
+                Image(systemName: isStaff ? "slider.horizontal.3" : "square.grid.2x2.fill")
+                    .font(.system(size: 54))
+                    .foregroundStyle(AppTheme.emeraldGreen)
 
-                Text("Resident View")
+                Text(isStaff ? "Staff Navigator" : "Resident Navigator")
                     .font(.title2.bold())
+                    .foregroundStyle(AppTheme.textPrimary)
 
-                Text("This is how residents see the app.\nSwitch to the other tabs to manage alerts, residents, and insights.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                Text(
+                    isStaff
+                    ? "Jump between resident records, alerts, AI monitoring, bridge tools, and settings from one place."
+                    : "Move between your home screen, care tools, and the staff/admin interface quickly during testing."
+                )
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
 
                 VStack(spacing: 12) {
-                    QuickNavRow(icon: "bell.badge.fill", title: "Alerts", description: "View and manage real-time alerts")
-                    QuickNavRow(icon: "person.crop.rectangle.badge.plus", title: "Participants", description: "Add and manage participant records")
-                    QuickNavRow(icon: "person.badge.key.fill", title: "Bridge", description: "Link participants to staff dashboards")
-                    QuickNavRow(icon: "waveform.and.magnifyingglass", title: "AI Monitor", description: "Camera and sensor insights")
+                    NavigatorButton(icon: isStaff ? "person.3.fill" : "heart.circle.fill",
+                                    title: isStaff ? "Residents" : "Home",
+                                    description: isStaff ? "Resident list, risk levels, and drill-in details" : "Resident monitoring and SOS actions") {
+                        onSelectTab(.home)
+                    }
+                    NavigatorButton(icon: "bell.badge.fill",
+                                    title: "Alerts",
+                                    description: isStaff ? "View and manage live facility alerts" : "Open the alert panel used during testing") {
+                        onSelectTab(.alerts)
+                    }
+                    NavigatorButton(icon: "person.crop.rectangle.badge.plus",
+                                    title: "Participants",
+                                    description: "Manage participant records and entries") {
+                        onSelectTab(.participants)
+                    }
+                    NavigatorButton(icon: "person.badge.key.fill",
+                                    title: "Bridge",
+                                    description: isStaff ? "Link staff to participant and resident workflows" : "Open the staff bridge and shared navigation tools") {
+                        onSelectTab(.bridge)
+                    }
+                    NavigatorButton(icon: "waveform.and.magnifyingglass",
+                                    title: "AI Monitor",
+                                    description: isStaff ? "Inspect AI events and monitoring sessions" : "Open AI monitoring controls and previews") {
+                        onSelectTab(.aiMonitor)
+                    }
+                    NavigatorButton(icon: "gearshape.fill",
+                                    title: "Settings",
+                                    description: "Account, care access, and testing preferences") {
+                        onSelectTab(.settings)
+                    }
+                    NavigatorButton(icon: isStaff ? "bed.double.fill" : "person.crop.circle.badge.checkmark",
+                                    title: isStaff ? "Switch to Resident Panel" : "Switch to Staff/Admin Panel",
+                                    description: "Return to the role selector and open the other interface") {
+                        onSwitchPanel()
+                    }
                 }
-                .padding(.top, 8)
 
                 Spacer()
             }
             .padding(.top, 40)
-            .navigationTitle("Home")
+            .padding(.horizontal, 20)
+            .navigationTitle("Navigate")
         }
     }
 }
 
-private struct QuickNavRow: View {
+private struct NavigatorButton: View {
     let icon: String
     let title: String
     let description: String
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(AppTheme.emeraldGreen)
-                .frame(width: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline)
-                Text(description).font(.caption).foregroundStyle(.secondary)
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(AppTheme.emeraldGreen)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline).foregroundStyle(AppTheme.textPrimary)
+                    Text(description).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Spacer()
+            .padding(14)
+            .background(AppTheme.surface)
+            .cornerRadius(14)
         }
-        .padding(.horizontal, 32)
+        .buttonStyle(.plain)
     }
 }

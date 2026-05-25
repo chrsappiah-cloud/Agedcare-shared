@@ -10,6 +10,9 @@ struct ResidentOverviewView: View {
   var body: some View {
     ScrollView {
       VStack(spacing: 16) {
+        if DemoResidentStore.shared.containsResident(resident.id) {
+          demoDataBanner
+        }
         header
         if let error = loadError {
           Text(error).foregroundColor(.red)
@@ -50,6 +53,17 @@ struct ResidentOverviewView: View {
     }
   }
 
+  private var demoDataBanner: some View {
+    Text("Resident summaries are ready for this care view.")
+      .font(.caption)
+      .foregroundColor(AppTheme.textPrimary)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(AppTheme.emeraldGreen.opacity(0.14))
+      .cornerRadius(10)
+  }
+
   private func statCard(title: String, value: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       Text(title)
@@ -69,8 +83,9 @@ struct ResidentOverviewView: View {
       async let seven = container.residentsRepository.getFallCount(residentId: resident.id, days: 7)
       async let thirty = container.residentsRepository.getFallCount(residentId: resident.id, days: 30)
       (fallSummary7d, fallSummary30d) = try await (seven, thirty)
+      loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      loadError = "Care summary is temporarily unavailable. Please try again shortly."
     }
   }
 }

@@ -47,20 +47,21 @@ final class AlertViewModel: ObservableObject {
         return
       }
       alerts = try await repo.getOpenAlerts(facilityId: facilityId)
+      WatchConnectivityService.shared.syncOpenAlerts(alerts, facilityId: facilityId.uuidString)
     } catch {
-      loadError = error.localizedDescription
+      loadError = error.userFacingMessage(fallback: "Alerts are temporarily unavailable. Pull to refresh and try again.")
     }
   }
 
   func acknowledge(alertId: Int64, staffId: UUID) async throws {
     guard let repo = alertsRepository else { return }
     try await repo.acknowledgeAlert(alertId: alertId, staffId: staffId)
-    try await loadAlerts()
+    await loadAlerts()
   }
 
   func close(alertId: Int64, notes: String) async throws {
     guard let repo = alertsRepository else { return }
     try await repo.closeAlert(alertId: alertId, notes: notes)
-    try await loadAlerts()
+    await loadAlerts()
   }
 }

@@ -2,7 +2,7 @@ name: CodeQL Security Scan
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**", "fix/**", "release/**", "ci/**", "chore/**"]
   pull_request:
     branches: [main]
   schedule:
@@ -33,12 +33,50 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.4.app/Contents/Developer
 
+      - name: Resolve available simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          DESTINATION=$(xcrun simctl list devices available --json | jq -r '
+            [
+              .devices
+              | to_entries[]
+              | select(.key | startswith("com.apple.CoreSimulator.SimRuntime.iOS-"))
+              | .key as $runtime
+              | .value[]
+              | select(.isAvailable == true and (.name | startswith("iPhone")))
+              | {
+                  runtime: ($runtime | sub("com.apple.CoreSimulator.SimRuntime.iOS-"; "") | split("-") | map(tonumber? // 0)),
+                  name,
+                  udid
+                }
+            ]
+            | sort_by(.runtime[0], .runtime[1], .runtime[2], .name)
+            | last // empty
+            | [.udid, .name]
+            | @tsv
+          ')
+          if [ -z "${DESTINATION:-}" ]; then
+            echo "No iPhone simulator destination was found." >&2
+            exit 1
+          fi
+          SIMULATOR_ID=$(printf '%s\n' "$DESTINATION" | cut -f1)
+          if [ -z "${SIMULATOR_ID:-}" ]; then
+            echo "Unable to resolve simulator UDID from: $DESTINATION" >&2
+            exit 1
+          fi
+          echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$SIMULATOR_ID" || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+
       - name: Build for CodeQL
         run: |
           xcodebuild build \
             -project Agedcare-shared.xcodeproj \
             -scheme Agedcare-shared \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+            -destination "id=${{ steps.simulator.outputs.id }}" \
+            -destination-timeout 180 \
             -configuration Debug \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \

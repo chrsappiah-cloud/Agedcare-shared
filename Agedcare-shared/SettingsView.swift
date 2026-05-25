@@ -4,6 +4,7 @@ struct SettingsView: View {
   let staff: StaffUserModel
   let session: SessionViewModel
   @EnvironmentObject var container: DependencyContainer
+  @StateObject private var backendHealth = BackendHealthService.shared
   @State private var showCamera = false
   @State private var showPhotoLibrary = false
   @State private var profileImage: UIImage?
@@ -43,6 +44,24 @@ struct SettingsView: View {
           if let email = staff.email {
             LabeledContent("Email", value: email)
               .foregroundColor(AppTheme.textPrimary)
+          }
+          LabeledContent("Access source", value: staff.accessSource.label)
+            .foregroundColor(AppTheme.textPrimary)
+          LabeledContent("Plan", value: staff.subscriptionTier.name)
+            .foregroundColor(AppTheme.textPrimary)
+          if let betaTrack = staff.betaTrack {
+            LabeledContent("Beta track", value: betaTrack.rawValue)
+              .foregroundColor(AppTheme.textPrimary)
+          }
+          if let accessNotes = staff.accessNotes {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Testing notes")
+                .font(.caption)
+                .foregroundColor(AppTheme.textSecondary)
+              Text(accessNotes)
+                .font(.footnote)
+                .foregroundColor(AppTheme.textPrimary)
+            }
           }
           LabeledContent("Facility ID", value: staff.facilityId.uuidString.prefix(8).description)
             .foregroundColor(AppTheme.textPrimary)
@@ -100,6 +119,35 @@ struct SettingsView: View {
         .listRowBackground(AppTheme.surface)
 
         Section {
+          LabeledContent("Status", value: backendHealth.statusSummary)
+            .foregroundColor(AppTheme.textPrimary)
+          LabeledContent("Preview access", value: backendHealth.demoAccessStatus)
+            .foregroundColor(AppTheme.textPrimary)
+          HStack {
+            Label(backendHealth.statusSummary, systemImage: backendHealth.isHealthy ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+              .foregroundColor(backendHealth.isHealthy ? AppTheme.emeraldGreen : AppTheme.warning)
+            Spacer()
+            Button("Refresh") {
+              Task { await backendHealth.refresh() }
+            }
+            .foregroundColor(AppTheme.emeraldGreen)
+          }
+          if let checkedAt = backendHealth.lastChecked {
+            LabeledContent("Last checked", value: checkedAt.formatted(date: .omitted, time: .shortened))
+              .foregroundColor(AppTheme.textSecondary)
+          }
+        } header: {
+          Text("Care Access").sectionHeaderStyle()
+        }
+        .listRowBackground(AppTheme.surface)
+
+        Section {
+          LabeledContent("Watch link", value: WatchConnectivityService.shared.statusSummary)
+            .foregroundColor(AppTheme.textPrimary)
+          if let lastSync = WatchConnectivityService.shared.lastSyncDate {
+            LabeledContent("Watch last sync", value: lastSync.formatted(date: .omitted, time: .shortened))
+              .foregroundColor(AppTheme.textSecondary)
+          }
           NavigationLink(destination: WatchPreviewView()) {
             Label("Watch Preview", systemImage: "applewatch")
               .foregroundColor(AppTheme.emeraldGreen)
@@ -137,7 +185,7 @@ struct SettingsView: View {
             Text("Legal & Privacy")
               .font(.title2.bold())
               .foregroundColor(AppTheme.textPrimary)
-            Text("WCS Care v1.0.3\n© 2026 World Class Scholars\nwcs-full.vercel.app\n\nYour data is encrypted and stored securely. HealthKit data never leaves your device without your consent.")
+            Text("WCS Care v1.0.3\n© 2026 World Class Scholars Productions\nwcs-full.vercel.app\n\nYour information is encrypted and stored securely. Health data never leaves your device without your consent.")
               .multilineTextAlignment(.center)
               .foregroundColor(AppTheme.textSecondary)
           }
@@ -161,6 +209,7 @@ struct SettingsView: View {
       .scrollContentBackground(.hidden)
       .background(AppTheme.gradientDiamond.ignoresSafeArea())
       .navigationTitle("Settings")
+      .task { await backendHealth.refresh() }
       .confirmationDialog("Change profile photo", isPresented: $showCamera) {
         Button("Camera") { showCamera = true }
         Button("Photo Library") { showPhotoLibrary = true }

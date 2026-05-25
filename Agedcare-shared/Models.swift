@@ -1,11 +1,49 @@
 import Foundation
 
+enum StaffAccessSource: String {
+  case backend
+  case localTesting
+
+  var label: String {
+    switch self {
+    case .backend: return "Live care service"
+    case .localTesting: return "Subscription testing plan"
+    }
+  }
+}
+
 struct StaffUserModel {
   let id: UUID
   let facilityId: UUID
   let role: String
   let displayName: String?
   let email: String?
+  let subscriptionTier: SubscriptionTier
+  let betaTrack: BetaTrack?
+  let accessSource: StaffAccessSource
+  let accessNotes: String?
+
+  init(
+    id: UUID,
+    facilityId: UUID,
+    role: String,
+    displayName: String?,
+    email: String?,
+    subscriptionTier: SubscriptionTier = .starter,
+    betaTrack: BetaTrack? = nil,
+    accessSource: StaffAccessSource = .backend,
+    accessNotes: String? = nil
+  ) {
+    self.id = id
+    self.facilityId = facilityId
+    self.role = role
+    self.displayName = displayName
+    self.email = email
+    self.subscriptionTier = subscriptionTier
+    self.betaTrack = betaTrack
+    self.accessSource = accessSource
+    self.accessNotes = accessNotes
+  }
 }
 
 struct ResidentModel: Identifiable {

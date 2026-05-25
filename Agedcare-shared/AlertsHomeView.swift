@@ -4,6 +4,7 @@ struct AlertsHomeView: View {
   let staff: StaffUserModel
   @EnvironmentObject var container: DependencyContainer
   @StateObject private var vm: AlertViewModel
+  private let refreshIntervalNanoseconds: UInt64 = 8_000_000_000
 
   init(staff: StaffUserModel) {
     self.staff = staff
@@ -34,10 +35,17 @@ struct AlertsHomeView: View {
         vm.alertsRepository = container.alertsRepository
       }
       .task {
-        await vm.loadAlerts()
+        await liveRefreshLoop()
       }
       .background(AppTheme.background)
       .accessibilityElement(children: .contain)
+    }
+  }
+
+  private func liveRefreshLoop() async {
+    while !Task.isCancelled {
+      await vm.loadAlerts()
+      try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
     }
   }
 

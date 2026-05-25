@@ -19,3 +19,7 @@ test_output.txt
 .build/
 Packages/
 Package.resolved
+
+## IDEs
+.idea/
+*.iml

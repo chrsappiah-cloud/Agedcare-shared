@@ -34,31 +34,27 @@ struct AgedCareApp: App {
   }
 
   private func initializeServices() async {
-    // 1. Push notifications
-    do {
+     WatchConnectivityService.shared.activateSessionIfNeeded()
+
+     // 1. Push notifications
+     do {
       try await PushNotificationService.shared.register()
       PushNotificationService.shared.registerForRemoteNotifications()
     } catch {
       print("ℹ️ Push registration skipped: \(error.localizedDescription)")
     }
 
-    // 2. HealthKit
-    do {
-      if HealthKitService.shared.isAvailable {
-        try await HealthKitService.shared.requestAuthorization()
-      } else {
-        healthInitError = "HealthKit: Not available on this device"
-      }
-    } catch {
-      healthInitError = "HealthKit: \(error.localizedDescription)"
-      print("ℹ️ HealthKit init skipped: \(error.localizedDescription)")
+    // 2. HealthKit is authorized when monitoring starts to avoid a launch-time permission timeout.
+    if !HealthKitService.shared.isAvailable {
+      healthInitError = "HealthKit: Not available on this device"
     }
 
-    // 3. Camera & Microphone permissions
-    await captureService.requestAllPermissions()
+     // 3. Camera & Microphone permissions
+     await captureService.requestAllPermissions()
+     await captureService.prepareCapturePipeline()
 
-    // 4. Speech Recognition
-    await speechService.requestAuthorization()
+     // 4. Speech Recognition
+     await speechService.requestAuthorization()
 
     // 5. CloudKit alert sync
     #if canImport(CloudKit)
@@ -68,7 +64,11 @@ struct AgedCareApp: App {
         try await cloudKit.subscribeToChanges()
       }
     } catch {
-      print("ℹ️ CloudKit subscription deferred: \(error.localizedDescription)")
+      if case CloudKitSyncError.containerNotConfigured = error {
+        // Expected on simulator and during environments without CloudKit container support.
+      } else {
+        print("ℹ️ CloudKit subscription deferred: \(error.localizedDescription)")
+      }
     }
     #endif
 

@@ -24,6 +24,10 @@ final class MonitoringCoordinator: ObservableObject {
   private let residentsRepository: ResidentsRepositoryProtocol
   private var healthTask: Task<Void, Never>?
   private var vitalEventTask: Task<Void, Never>?
+  private var incidentResetTask: Task<Void, Never>?
+  private var weatherSnapshotCancellable: AnyCancellable?
+  private var lastWeatherSyncSignature: String?
+  private var lastWeatherSyncDate: Date?
 
   init(fallService: FallService, facilityId: UUID, residentId: UUID, alertsRepository: AlertsRepositoryProtocol, residentsRepository: ResidentsRepositoryProtocol) {
     self.fallService = fallService
@@ -33,6 +37,7 @@ final class MonitoringCoordinator: ObservableObject {
     self.residentsRepository = residentsRepository
     self.fallService.delegate = self
     setupVisionFallDetection()
+    setupWeatherLocationSync()
   }
 
   func startMonitoring() {
@@ -40,7 +45,10 @@ final class MonitoringCoordinator: ObservableObject {
     fallService.start()
     authorizeAndStartHealthKit()
     subscribeToCloudKitAlerts()
+    LocationWeatherService.shared.requestPermissionAndStart()
+    Task { await AVCaptureService.shared.prepareCapturePipeline() }
     startVideoMonitoring()
+    syncWatchMonitoringStatus(statusText: "Monitoring active")
   }
 
   func stopMonitoring() {
@@ -50,7 +58,11 @@ final class MonitoringCoordinator: ObservableObject {
     healthTask = nil
     vitalEventTask?.cancel()
     vitalEventTask = nil
+    incidentResetTask?.cancel()
+    incidentResetTask = nil
     AVCaptureService.shared.frameHandler = nil
+    LocationWeatherService.shared.stop()
+    syncWatchMonitoringStatus(statusText: "Monitoring paused")
   }
 
   // MARK: - Vision Fall Detection
@@ -76,24 +88,22 @@ final class MonitoringCoordinator: ObservableObject {
 
   private func handleVisionFallEvent(_ event: VisionFallDetector.VisionIncidentEvent) {
     visionFallRisk = VisionFallDetector.shared.fallRiskLevel
-    isRecordingIncident = true
-    AVCaptureService.shared.startIncidentRecording(type: "fall", residentId: residentId)
-    postLocalNotification(
+    startManagedIncidentCapture(
+      type: "fall",
+      priority: 3,
       title: "Fall Detected (Vision)",
       body: "Camera detected a possible fall. Recording incident video."
     )
-    Task { await triggerExternalAlert(type: "fall", priority: 3) }
   }
 
   private func handleVisionInjuryEvent(_ event: VisionFallDetector.VisionIncidentEvent) {
     visionFallRisk = VisionFallDetector.shared.fallRiskLevel
-    isRecordingIncident = true
-    AVCaptureService.shared.startIncidentRecording(type: "injury", residentId: residentId)
-    postLocalNotification(
+    startManagedIncidentCapture(
+      type: "injury",
+      priority: 3,
       title: "Possible Injury Detected",
       body: "Camera analysis suggests a possible injury. Recording."
     )
-    Task { await triggerExternalAlert(type: "injury", priority: 2) }
   }
 
   private func authorizeAndStartHealthKit() {
@@ -124,6 +134,8 @@ final class MonitoringCoordinator: ObservableObject {
         for try await reading in stream {
           guard let self = self, self.monitoringEnabled else { break }
           self.latestHeartRate = "\(Int(reading.value)) bpm"
+          self.syncWatchVital(metric: "heart_rate", value: reading.value)
+          self.syncWatchMonitoringStatus(statusText: "Monitoring active")
 
           if let alert = HealthKitService.shared.detectAbnormalVitals(reading: reading) {
             await self.handleVitalAlert(alert)
@@ -169,6 +181,50 @@ final class MonitoringCoordinator: ObservableObject {
     }
   }
 
+  private func setupWeatherLocationSync() {
+    weatherSnapshotCancellable = LocationWeatherService.shared.$snapshot
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] snapshot in
+        guard let self else { return }
+        Task { await self.recordWeatherSnapshotIfNeeded(snapshot) }
+      }
+  }
+
+  private func recordWeatherSnapshotIfNeeded(_ snapshot: WeatherSnapshot) async {
+    guard monitoringEnabled else { return }
+    guard let timestamp = snapshot.lastUpdated else { return }
+
+    let metrics = snapshot.backendMetrics()
+    guard !metrics.isEmpty else { return }
+
+    let signature = snapshot.backendSyncSignature()
+    if lastWeatherSyncSignature == signature,
+       let lastWeatherSyncDate,
+       timestamp.timeIntervalSince(lastWeatherSyncDate) < 60 {
+      return
+    }
+
+    LocationWeatherService.shared.markBackendSyncStarted()
+
+    do {
+      for metric in metrics {
+        try await residentsRepository.recordVitalEvent(
+          facilityId: facilityId,
+          residentId: residentId,
+          metric: metric.metric,
+          value: metric.value,
+          timestamp: timestamp
+        )
+      }
+      lastWeatherSyncSignature = signature
+      lastWeatherSyncDate = timestamp
+      LocationWeatherService.shared.markBackendSyncSucceeded(at: timestamp)
+    } catch {
+      LocationWeatherService.shared.markBackendSyncFailed("Backend sync delayed")
+      print("[MonitoringCoordinator] Failed to record weather/location metrics: \(error)")
+    }
+  }
+
   private func handleVitalAlert(_ alert: VitalAlert) async {
     let title: String
     let body: String
@@ -190,13 +246,20 @@ final class MonitoringCoordinator: ObservableObject {
     }
 
     postLocalNotification(title: title, body: body)
+    syncWatchMonitoringStatus(statusText: title)
   }
 
   private func triggerExternalAlert(type: String, priority: Int) async {
     do {
-      let _ = try await alertsRepository.createFallAlert(facilityId: facilityId, residentId: residentId, priority: priority)
+      switch type {
+      case "injury", "sos":
+        let _ = try await alertsRepository.createSOSAlert(facilityId: facilityId, residentId: residentId)
+      default:
+        let _ = try await alertsRepository.createFallAlert(facilityId: facilityId, residentId: residentId, priority: priority)
+      }
+      lastErrorMessage = nil
     } catch {
-      lastErrorMessage = "Alert creation failed: \(error.localizedDescription)"
+      lastErrorMessage = error.userFacingMessage(fallback: "Staff alerts are temporarily unavailable. Updates may take a little longer.")
     }
   }
 
@@ -227,17 +290,63 @@ extension MonitoringCoordinator: FallServiceDelegate {
   func fallServiceDidTriggerPossibleFall(_ service: FallService, event: FallDetectionEvent) {
     lastEvent = event
     if !isRecordingIncident {
-      isRecordingIncident = true
-      AVCaptureService.shared.startIncidentRecording(type: "fall_motion", residentId: residentId)
+      startManagedIncidentCapture(
+        type: "fall_motion",
+        priority: 3,
+        title: "Possible Fall Detected",
+        body: "Staff have been notified. Incident video recording started."
+      )
+      return
     }
-    postLocalNotification(
-      title: "Possible Fall Detected",
-      body: "Staff have been notified. Incident video recording started."
-    )
     Task { await triggerExternalAlert(type: "fall", priority: 3) }
   }
 
   func fallService(_ service: FallService, didFailWith error: Error) {
-    lastErrorMessage = error.localizedDescription
+    lastErrorMessage = error.userFacingMessage(fallback: "Fall monitoring is temporarily unavailable. Please keep the device nearby.")
+  }
+
+  private func startManagedIncidentCapture(type: String, priority: Int, title: String, body: String) {
+    isRecordingIncident = true
+    AVCaptureService.shared.startIncidentRecording(type: type, facilityId: facilityId, residentId: residentId)
+    postLocalNotification(title: title, body: body)
+    syncWatchMonitoringStatus(statusText: title)
+    Task { await triggerExternalAlert(type: type, priority: priority) }
+
+    incidentResetTask?.cancel()
+    incidentResetTask = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: 32_000_000_000)
+      await MainActor.run {
+        self?.isRecordingIncident = false
+        self?.syncWatchMonitoringStatus(statusText: "Monitoring active")
+      }
+    }
+  }
+
+  private func syncWatchVital(metric: String, value: Double) {
+    WatchConnectivityService.shared.sendVitalUpdate(
+      facilityId: facilityId.uuidString,
+      residentId: residentId.uuidString,
+      metric: metric,
+      value: value
+    )
+  }
+
+  private func syncWatchMonitoringStatus(statusText: String) {
+    let snapshot = LocationWeatherService.shared.snapshot
+    WatchConnectivityService.shared.syncResidentStatus(
+      .init(
+        facilityId: facilityId.uuidString,
+        residentId: residentId.uuidString,
+        statusText: statusText,
+        isMonitoringActive: monitoringEnabled,
+        isRecordingIncident: isRecordingIncident,
+        fallRisk: String(describing: visionFallRisk),
+        heartRate: latestHeartRate,
+        bloodOxygen: latestBloodOxygen,
+        locationName: snapshot.locationName.isEmpty ? nil : snapshot.locationName,
+        movementSummary: snapshot.movementStateDescription(),
+        recordedAt: ISO8601DateFormatter().string(from: Date())
+      )
+    )
   }
 }

@@ -21,12 +21,13 @@ env:
   CONFIGURATION: Release
   IPA_NAME: Agedcare-shared.ipa
   TEAM_ID: TM2WG7HH96
+  # Homebrew/MacPorts rsync breaks xcodebuild -exportArchive on self-hosted runners.
+  PATH: /usr/bin:/bin:/usr/sbin:/sbin
 
 jobs:
   archive-and-upload:
     name: Archive & Upload to TestFlight
     runs-on: macos-26
-    environment: production
     timeout-minutes: 60
 
     steps:
@@ -41,25 +42,33 @@ jobs:
         run: xcodebuild -version
 
       - name: Pre-flight — verify required signing secrets
+        id: preflight
         env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
         run: |
           set -e
+          has_api_key=false
+          if [ -n "${ASC_PRIVATE_KEY_BASE64:-}" ] || [ -n "${ASC_PRIVATE_KEY:-}" ]; then
+            has_api_key=true
+          fi
           missing=()
-          for name in BUILD_CERTIFICATE_BASE64 P12_PASSWORD BUILD_PROVISION_PROFILE_BASE64 KEYCHAIN_PASSWORD ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY_BASE64; do
+          for name in ASC_KEY_ID ASC_ISSUER_ID; do
             if [ -z "${!name:-}" ]; then missing+=("$name"); fi
           done
+          if [ "$has_api_key" = false ]; then
+            missing+=("ASC_PRIVATE_KEY_BASE64 or ASC_PRIVATE_KEY")
+          fi
           if [ ${#missing[@]} -ne 0 ]; then
             {
               echo "### ❌ Missing required GitHub Actions secrets"
               echo ""
-              echo "The following repository secrets must be configured before this workflow can sign and upload to TestFlight:"
+              echo "The following repository secrets must be configured before this workflow can sign and upload to TestFlight with App Store Connect cloud signing:"
               echo ""
               for s in "${missing[@]}"; do echo "- \`$s\`"; done
               echo ""
@@ -70,7 +79,17 @@ jobs:
             echo "::error::Missing secrets: ${missing[*]}"
             exit 1
           fi
-          echo "✅ All 7 required signing secrets are present"
+          echo "✅ All required App Store Connect secrets are present"
+          if [ -n "${BUILD_PROVISION_PROFILE_BASE64:-}" ]; then
+            echo "✅ App Store provisioning profile secret is present"
+          else
+            echo "ℹ️ No BUILD_PROVISION_PROFILE_BASE64 secret set; export will rely on cloud-managed profiles"
+          fi
+          if [ -n "${BUILD_CERTIFICATE_BASE64:-}" ] && [ -n "${BUILD_CERTIFICATE_PASSWORD:-}" ]; then
+            echo "✅ Distribution certificate secrets are present"
+          else
+            echo "ℹ️ No BUILD_CERTIFICATE_BASE64 / BUILD_CERTIFICATE_PASSWORD secret set; archive will rely on cloud signing"
+          fi
 
       - name: Resolve marketing version + build number
         id: version
@@ -84,7 +103,9 @@ jobs:
             MV=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Agedcare-shared/Info.plist 2>/dev/null \
               || grep -m1 "MARKETING_VERSION" "$PROJECT/project.pbxproj" | sed -E 's/.*= ([^;]+);/\1/' | tr -d ' "')
           fi
-          BN="$(( 100 + ${{ github.run_number }} ))"
+          CURRENT_BUILD=$(grep -m1 "CURRENT_PROJECT_VERSION" "$PROJECT/project.pbxproj" | sed -E 's/.*= ([0-9]+);/\1/')
+          CURRENT_BUILD="${CURRENT_BUILD:-1}"
+          BN="$(( CURRENT_BUILD + ${{ github.run_number }} ))"
           echo "marketing=$MV" >> "$GITHUB_OUTPUT"
           echo "build=$BN" >> "$GITHUB_OUTPUT"
           echo "Marketing version: $MV"
@@ -96,61 +117,214 @@ jobs:
           xcrun agvtool new-marketing-version "${{ steps.version.outputs.marketing }}"
           xcrun agvtool new-version -all "${{ steps.version.outputs.build }}"
 
-      - name: Import code-signing assets
+      - name: Prepare App Store Connect API key
         env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
         run: |
           set -euo pipefail
-          CERT_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+          mkdir -p ~/.appstoreconnect/private_keys
+          if [ -n "${ASC_PRIVATE_KEY_BASE64:-}" ]; then
+            echo -n "$ASC_PRIVATE_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          elif [ -n "${ASC_PRIVATE_KEY:-}" ]; then
+            printf '%s' "$ASC_PRIVATE_KEY" > "$KEY_PATH"
+          else
+            echo "::error::Neither ASC_PRIVATE_KEY_BASE64 nor ASC_PRIVATE_KEY is set"
+            exit 1
+          fi
+          cp "$KEY_PATH" ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
 
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
-
+      - name: Install App Store provisioning profile
+        id: provisioning
+        env:
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUILD_PROVISION_PROFILE_BASE64:-}" ]; then
+            echo "No BUILD_PROVISION_PROFILE_BASE64 secret configured; skipping profile install."
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode \
+            -o "$RUNNER_TEMP/Agedcare-shared.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/Agedcare-shared.mobileprovision" > "$RUNNER_TEMP/Agedcare-shared-profile.plist"
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/Agedcare-shared-profile.plist")
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$RUNNER_TEMP/Agedcare-shared-profile.plist")
+          PROFILE_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$RUNNER_TEMP/Agedcare-shared-profile.plist" | sed -E 's/^[^.]+\.//')
+          PROFILE_HAS_DEVICES=$(/usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1 && echo "true" || echo "false")
+          PROFILE_GET_TASK_ALLOW=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:get-task-allow" "$RUNNER_TEMP/Agedcare-shared-profile.plist" 2>/dev/null || echo "false")
+          PROFILE_HAS_BETA=$(/usr/libexec/PlistBuddy -c "Print :ProvisionsAllDevices" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1 && echo "enterprise" || echo "standard")
+          missing_caps=()
+          for entitlement in \
+            com.apple.developer.homekit \
+            com.apple.developer.weatherkit \
+            com.apple.developer.messages.critical-messaging; do
+            if /usr/libexec/PlistBuddy -c "Print :Entitlements:$entitlement" "$RUNNER_TEMP/Agedcare-shared-profile.plist" >/dev/null 2>&1; then
+              continue
+            fi
+            missing_caps+=("$entitlement")
+          done
+          if [ ${#missing_caps[@]} -ne 0 ]; then
+            echo "::warning::Skipping stale BUILD_PROVISION_PROFILE_BASE64 profile '$PROFILE_NAME'."
+            echo "::warning::Missing entitlements: ${missing_caps[*]}"
+            echo "::warning::Regenerate the App Store profile in developer.apple.com (App ID wcs.Agedcare-shared must include HomeKit, WeatherKit, Critical Messaging) and update the secret."
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cp "$RUNNER_TEMP/Agedcare-shared.mobileprovision" \
+            ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
+          echo "installed=true" >> "$GITHUB_OUTPUT"
+          echo "name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
+          echo "uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+          echo "bundle_id=$PROFILE_BUNDLE_ID" >> "$GITHUB_OUTPUT"
+          echo "has_devices=$PROFILE_HAS_DEVICES" >> "$GITHUB_OUTPUT"
+          echo "get_task_allow=$PROFILE_GET_TASK_ALLOW" >> "$GITHUB_OUTPUT"
+          echo "distribution_kind=$PROFILE_HAS_BETA" >> "$GITHUB_OUTPUT"
+          if [ "$PROFILE_HAS_DEVICES" = "true" ] || [ "$PROFILE_GET_TASK_ALLOW" = "true" ]; then
+            echo "::warning::Installed provisioning profile '$PROFILE_NAME' appears to be a development/ad hoc profile and will not work for TestFlight export."
+          else
+            echo "✅ Installed provisioning profile '$PROFILE_NAME' for bundle '$PROFILE_BUNDLE_ID'"
+          fi
+
+      - name: Install distribution certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          BUILD_CERTIFICATE_PASSWORD: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUILD_CERTIFICATE_BASE64:-}" ] || [ -z "${BUILD_CERTIFICATE_PASSWORD:-}" ]; then
+            echo "No distribution certificate secrets configured; skipping certificate install."
+            exit 0
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/build_certificate.p12"
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$BUILD_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$BUILD_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$BUILD_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$BUILD_CERTIFICATE_PASSWORD" "$KEYCHAIN_PATH"
 
       - name: Archive (Release)
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
         run: |
+          set -euo pipefail
+          AUTH_ARGS=(-allowProvisioningUpdates)
+          if [ -f "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" ]; then
+            AUTH_ARGS+=(
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
+              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            )
+          fi
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-            -allowProvisioningUpdates \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            | xcpretty || exit ${PIPESTATUS[0]}
+            "${AUTH_ARGS[@]}" \
+            | tee "$RUNNER_TEMP/archive.log"
+          test -d "$RUNNER_TEMP/$SCHEME.xcarchive"
 
       - name: Export IPA
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/$SCHEME.xcarchive" \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates
-          ls -la "$RUNNER_TEMP/export"
-
-      - name: Prepare App Store Connect API key
         env:
-          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          INSTALLED_PROFILE_NAME: ${{ steps.provisioning.outputs.name }}
+          INSTALLED_PROFILE_UUID: ${{ steps.provisioning.outputs.uuid }}
+          INSTALLED_PROFILE_BUNDLE_ID: ${{ steps.provisioning.outputs.bundle_id }}
+          INSTALLED_PROFILE_HAS_DEVICES: ${{ steps.provisioning.outputs.has_devices }}
+          INSTALLED_PROFILE_GET_TASK_ALLOW: ${{ steps.provisioning.outputs.get_task_allow }}
         run: |
-          mkdir -p ~/.appstoreconnect/private_keys
-          echo -n "$ASC_PRIVATE_KEY_BASE64" | base64 --decode \
-            > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
-          echo "$RUNNER_TEMP/AuthKey.p8"
-          echo -n "$ASC_PRIVATE_KEY_BASE64" | base64 --decode -o "$RUNNER_TEMP/AuthKey.p8"
+          set -euo pipefail
+          EXPORT_PATH="$RUNNER_TEMP/export"
+          EXPORT_LOG="$RUNNER_TEMP/export.log"
+          ARCHIVE_PATH="$RUNNER_TEMP/$SCHEME.xcarchive"
+          rm -rf "$EXPORT_PATH"
+          mkdir -p "$EXPORT_PATH"
+
+          AUTH_ARGS=(-allowProvisioningUpdates)
+          if [ -f "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" ]; then
+            AUTH_ARGS+=(
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"
+              -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"
+              -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            )
+          fi
+          set +e
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$EXPORT_PATH" \
+            "${AUTH_ARGS[@]}" \
+            2>&1 | tee "$EXPORT_LOG"
+          export_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$export_status" -ne 0 ]; then
+            if grep -Eq "doesn't include the|doesn't include the com.apple.developer" "$EXPORT_LOG"; then
+              echo "::error::App Store provisioning profile is missing required capabilities (HomeKit, WeatherKit, Critical Messaging)."
+              echo "::error::Enable them on the App ID in developer.apple.com, regenerate the distribution profile, then refresh BUILD_PROVISION_PROFILE_BASE64 or rely on cloud signing with an App Manager API key."
+              exit "$export_status"
+            fi
+            if ! grep -Eq "Cloud signing permission error|No profiles for '.*' were found" "$EXPORT_LOG"; then
+              echo "Automatic export failed for a non-profile reason; not retrying."
+              exit "$export_status"
+            fi
+
+            APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -maxdepth 1 -name "*.app" -print -quit)
+            if [ -z "${APP_PATH:-}" ] || [ ! -d "$APP_PATH" ]; then
+              echo "Archived app bundle not found for fallback export."
+              exit "$export_status"
+            fi
+
+            MANUAL_EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.manual.plist"
+            INFO_PLIST="$APP_PATH/Info.plist"
+            BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST")
+
+            PROFILE_NAME="${INSTALLED_PROFILE_NAME:-}"
+            PROFILE_UUID="${INSTALLED_PROFILE_UUID:-}"
+            PROFILE_BUNDLE_ID="${INSTALLED_PROFILE_BUNDLE_ID:-}"
+            PROFILE_HAS_DEVICES="${INSTALLED_PROFILE_HAS_DEVICES:-}"
+            PROFILE_GET_TASK_ALLOW="${INSTALLED_PROFILE_GET_TASK_ALLOW:-}"
+
+            if [ -z "$PROFILE_NAME" ] || [ -z "$PROFILE_UUID" ]; then
+              echo "No BUILD_PROVISION_PROFILE_BASE64 App Store profile was installed for fallback export."
+              echo "Configure BUILD_PROVISION_PROFILE_BASE64 with an iOS App Store/TestFlight profile for $BUNDLE_ID."
+              exit "$export_status"
+            fi
+
+            if [ "$PROFILE_BUNDLE_ID" != "$BUNDLE_ID" ]; then
+              echo "Installed fallback profile bundle identifier '$PROFILE_BUNDLE_ID' does not match app bundle '$BUNDLE_ID'."
+              exit "$export_status"
+            fi
+
+            if [ "$PROFILE_HAS_DEVICES" = "true" ] || [ "$PROFILE_GET_TASK_ALLOW" = "true" ]; then
+              echo "Installed fallback profile '$PROFILE_NAME' is not an App Store/TestFlight distribution profile."
+              exit "$export_status"
+            fi
+
+            cp ExportOptions.plist "$MANUAL_EXPORT_PLIST"
+            /usr/libexec/PlistBuddy -c "Set :signingStyle manual" "$MANUAL_EXPORT_PLIST"
+            /usr/libexec/PlistBuddy -c "Delete :provisioningProfiles" "$MANUAL_EXPORT_PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$MANUAL_EXPORT_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_NAME" "$MANUAL_EXPORT_PLIST"
+
+            echo "Retrying export with archived provisioning profile: $PROFILE_NAME"
+            rm -rf "$EXPORT_PATH"
+            mkdir -p "$EXPORT_PATH"
+            xcodebuild -exportArchive \
+              -archivePath "$ARCHIVE_PATH" \
+              -exportOptionsPlist "$MANUAL_EXPORT_PLIST" \
+              -exportPath "$EXPORT_PATH" \
+              2>&1 | tee -a "$EXPORT_LOG"
+          fi
+          ls -la "$RUNNER_TEMP/export"
 
       - name: Validate IPA against App Store Connect
         run: |
@@ -201,8 +375,10 @@ jobs:
       - name: Clean up keychain
         if: always()
         run: |
-          security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
-          rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8 "$RUNNER_TEMP/AuthKey.p8" || true
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_*.p8 "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP"/build_certificate.p12 || true
+          if [ -f "$RUNNER_TEMP/app-signing.keychain-db" ]; then
+            security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
+          fi
 
       - name: Job summary
         if: always()

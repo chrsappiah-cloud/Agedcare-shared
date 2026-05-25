@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1290" height="2796" viewBox="0 0 1290 2796">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C21F33"/>
+      <stop offset="100%" stop-color="#8C0E1F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.35" r="0.55">
+      <stop offset="0%" stop-color="#FF5C7A" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FF5C7A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F5F7FA"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="18"/>
+      <feOffset dx="0" dy="10"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1290" height="2796" fill="url(#bg)"/>
+  <rect width="1290" height="2796" fill="url(#glow)"/>
+
+  <!-- Pulse rings -->
+  <circle cx="1060" cy="480" r="80" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.15"/>
+  <circle cx="1060" cy="480" r="55" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.25"/>
+
+  <!-- Eyebrow -->
+  <g transform="translate(420,360)">
+    <rect width="450" height="70" rx="35" fill="#FFFFFF" opacity="0.15"/>
+    <text x="225" y="46" font-family="Helvetica Neue, Helvetica, Arial" font-size="28" font-weight="700"
+          text-anchor="middle" fill="#FFD0D6" letter-spacing="4">FOR CARE STAFF</text>
+  </g>
+
+  <!-- App icon -->
+  <g filter="url(#shadow)" transform="translate(445,560)">
+    <rect width="400" height="400" rx="90" fill="#FFFFFF"/>
+    <image href="../app_icon.png" x="0" y="0" width="400" height="400"/>
+  </g>
+
+  <!-- Headline -->
+  <text x="645" y="1160" font-family="Helvetica Neue, Helvetica, Arial" font-size="96" font-weight="800"
+        text-anchor="middle" fill="#FFFFFF">Respond faster.</text>
+  <text x="645" y="1275" font-family="Helvetica Neue, Helvetica, Arial" font-size="96" font-weight="800"
+        text-anchor="middle" fill="#FFD0D6">Care smarter.</text>
+
+  <text x="645" y="1390" font-family="Helvetica Neue, Helvetica, Arial" font-size="38" font-weight="400"
+        text-anchor="middle" fill="#F5F7FA" opacity="0.9">On-device detection. Instant alerts.</text>
+  <text x="645" y="1445" font-family="Helvetica Neue, Helvetica, Arial" font-size="38" font-weight="400"
+        text-anchor="middle" fill="#F5F7FA" opacity="0.7">Everything you need, right on your iPhone and Watch.</text>
+
+  <!-- Feature cards -->
+  <g font-family="Helvetica Neue, Helvetica, Arial">
+    <g transform="translate(120,1620)" filter="url(#shadow)">
+      <rect width="1050" height="130" rx="24" fill="url(#card)"/>
+      <rect x="0" y="0" width="12" height="130" rx="6" fill="#C21F33"/>
+      <text x="48" y="52" font-size="32" font-weight="700" fill="#452917">Vision fall detection</text>
+      <text x="48" y="96" font-size="26" font-weight="400" fill="#734D33">On-device CoreML — no video ever leaves the iPhone</text>
+    </g>
+    <g transform="translate(120,1770)" filter="url(#shadow)">
+      <rect width="1050" height="130" rx="24" fill="url(#card)"/>
+      <rect x="0" y="0" width="12" height="130" rx="6" fill="#33AB54"/>
+      <text x="48" y="52" font-size="32" font-weight="700" fill="#452917">Distress-sound monitoring</text>
+      <text x="48" y="96" font-size="26" font-weight="400" fill="#734D33">SoundAnalysis detects help calls and keywords in real time</text>
+    </g>
+    <g transform="translate(120,1920)" filter="url(#shadow)">
+      <rect width="1050" height="130" rx="24" fill="url(#card)"/>
+      <rect x="0" y="0" width="12" height="130" rx="6" fill="#1C7836"/>
+      <text x="48" y="52" font-size="32" font-weight="700" fill="#452917">Apple Watch companion</text>
+      <text x="48" y="96" font-size="26" font-weight="400" fill="#734D33">Alerts and SOS on your wrist — act without unlocking your phone</text>
+    </g>
+  </g>
+
+  <!-- Footer CTA -->
+  <text x="645" y="2240" font-family="Helvetica Neue, Helvetica, Arial" font-size="36" font-weight="700"
+        text-anchor="middle" fill="#FFD0D6">AgedCare Monitor</text>
+  <text x="645" y="2290" font-family="Helvetica Neue, Helvetica, Arial" font-size="26" font-weight="400"
+        text-anchor="middle" fill="#F5F7FA" opacity="0.7">on-device · private-by-design · available now</text>
+</svg>

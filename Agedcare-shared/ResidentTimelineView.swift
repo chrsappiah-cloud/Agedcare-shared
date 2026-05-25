@@ -5,6 +5,7 @@ struct ResidentTimelineView: View {
   @EnvironmentObject var container: DependencyContainer
   @State private var entries: [TimelineEntryDTO] = []
   @State private var loadError: String?
+  private let refreshIntervalNanoseconds: UInt64 = 10_000_000_000
 
   var body: some View {
     List(entries, id: \.ts) { entry in
@@ -18,7 +19,18 @@ struct ResidentTimelineView: View {
       }
     }
     .navigationTitle("Timeline")
-    .task { await loadTimeline() }
+    .safeAreaInset(edge: .top) {
+      if DemoResidentStore.shared.containsResident(resident.id) {
+        Text("Resident timeline updates are ready for this care view.")
+          .font(.caption)
+          .foregroundColor(AppTheme.textPrimary)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .frame(maxWidth: .infinity)
+          .background(AppTheme.emeraldGreen.opacity(0.14))
+      }
+    }
+    .task { await liveRefreshLoop() }
     .overlay {
       if entries.isEmpty {
         if let error = loadError {
@@ -30,11 +42,19 @@ struct ResidentTimelineView: View {
     }
   }
 
+  private func liveRefreshLoop() async {
+    while !Task.isCancelled {
+      await loadTimeline()
+      try? await Task.sleep(nanoseconds: refreshIntervalNanoseconds)
+    }
+  }
+
   private func loadTimeline() async {
     do {
       entries = try await container.residentsRepository.getTimeline(residentId: resident.id)
+      loadError = nil
     } catch {
-      loadError = error.localizedDescription
+      loadError = "Timeline updates are temporarily unavailable. Please try again shortly."
     }
   }
 }

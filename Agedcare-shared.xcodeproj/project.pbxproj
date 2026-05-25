@@ -6,7 +6,23 @@
 	objectVersion = 100;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3F666E8CAC2E566345119B11 /* AgedcareWatchExtension.appex in Embed Watch Extension */ = {isa = PBXBuildFile; fileRef = A43658D73978BD6B0DF20306 /* AgedcareWatchExtension.appex */; };
+		614838F6438E8E6643AF6988 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1A167560138E1664FE6E1A6 /* Foundation.framework */; };
+		A1CB5D67393B3BFE1E75FBB4 /* WatchSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97BC3780456D0209DDBB5E5F /* WatchSessionManager.swift */; };
+		BA9B6CE0917E32BE616681B0 /* AgedcareWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12A13B39D9288FAEBD2D8C3 /* AgedcareWatchApp.swift */; };
+		BD9F261AA017172D718A6FB9 /* WatchDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE37FD5248CA911C81AE4791 /* WatchDashboardView.swift */; };
+		DC24E54F1BF63657DF2ACA8C /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1A167560138E1664FE6E1A6 /* Foundation.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		25CC0BB218BFCC4C90602AD5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5E0699C32FAFEFEA008E21DB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6879EF464641FCF20CF3E1F1;
+			remoteInfo = AgedcareWatchExtension;
+		};
 		5E0699DD2FAFEFEC008E21DB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5E0699C32FAFEFEA008E21DB /* Project object */;
@@ -23,10 +39,28 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		83B710D0645C035F9B74DD84 /* Embed Watch Extension */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				3F666E8CAC2E566345119B11 /* AgedcareWatchExtension.appex in Embed Watch Extension */,
+			);
+			name = "Embed Watch Extension";
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		5E0699CB2FAFEFEA008E21DB /* Agedcare-shared.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Agedcare-shared.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E0699DC2FAFEFEC008E21DB /* Agedcare-sharedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Agedcare-sharedTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E0699E62FAFEFEC008E21DB /* Agedcare-sharedUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Agedcare-sharedUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		97BC3780456D0209DDBB5E5F /* WatchSessionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSessionManager.swift; sourceTree = "<group>"; };
+		A43658D73978BD6B0DF20306 /* AgedcareWatchExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AgedcareWatchExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1A167560138E1664FE6E1A6 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		DE37FD5248CA911C81AE4791 /* WatchDashboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchDashboardView.swift; sourceTree = "<group>"; };
+		F12A13B39D9288FAEBD2D8C3 /* AgedcareWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgedcareWatchApp.swift; sourceTree = "<group>"; };
+		F9C8F4438820B171F503CADE /* AgedcareWatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgedcareWatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -34,6 +68,10 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				.idea,
+				"cloudflare-worker",
+				Agedcare_shared.entitlements,
+				Agedcare_shared_release.entitlements,
 			);
 			target = 5E0699CA2FAFEFEA008E21DB /* Agedcare-shared */;
 		};
@@ -44,6 +82,10 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				5E0699EE2FAFEFEC008E21DB /* Exceptions for "Agedcare-shared" folder in "Agedcare-shared" target */,
+			);
+			explicitFolders = (
+				.idea,
+				"cloudflare-worker",
 			);
 			path = "Agedcare-shared";
 			sourceTree = "<group>";
@@ -61,6 +103,12 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		0887D70E1824C665DBC03D67 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				614838F6438E8E6643AF6988 /* Foundation.framework in Frameworks */,
+			);
+		};
 		5E0699C82FAFEFEA008E21DB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -76,9 +124,25 @@
 			files = (
 			);
 		};
+		71E45D76675A8D4D1C042341 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				DC24E54F1BF63657DF2ACA8C /* Foundation.framework in Frameworks */,
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4BAC034155D620E7B4E26297 /* AgedcareWatchExtension */ = {
+			isa = PBXGroup;
+			children = (
+				97BC3780456D0209DDBB5E5F /* WatchSessionManager.swift */,
+				F12A13B39D9288FAEBD2D8C3 /* AgedcareWatchApp.swift */,
+				DE37FD5248CA911C81AE4791 /* WatchDashboardView.swift */,
+			);
+			path = AgedcareWatchExtension;
+			sourceTree = "<group>";
+		};
 		5E0699C22FAFEFEA008E21DB = {
 			isa = PBXGroup;
 			children = (
@@ -86,6 +150,9 @@
 				5E0699DF2FAFEFEC008E21DB /* Agedcare-sharedTests */,
 				5E0699E92FAFEFEC008E21DB /* Agedcare-sharedUITests */,
 				5E0699CC2FAFEFEA008E21DB /* Products */,
+				DE81A15F90B18BC3F81B4F8B /* Frameworks */,
+				B58E7A68C7330B8F45EC28C7 /* AgedcareWatch */,
+				4BAC034155D620E7B4E26297 /* AgedcareWatchExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -95,13 +162,57 @@
 				5E0699CB2FAFEFEA008E21DB /* Agedcare-shared.app */,
 				5E0699DC2FAFEFEC008E21DB /* Agedcare-sharedTests.xctest */,
 				5E0699E62FAFEFEC008E21DB /* Agedcare-sharedUITests.xctest */,
+				F9C8F4438820B171F503CADE /* AgedcareWatchApp.app */,
+				A43658D73978BD6B0DF20306 /* AgedcareWatchExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B58E7A68C7330B8F45EC28C7 /* AgedcareWatch */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = AgedcareWatch;
+			sourceTree = "<group>";
+		};
+		CE442E49DBEBA3DF01E1148A /* watchOS */ = {
+			isa = PBXGroup;
+			children = (
+				B1A167560138E1664FE6E1A6 /* Foundation.framework */,
+			);
+			name = watchOS;
+			sourceTree = "<group>";
+		};
+		DE81A15F90B18BC3F81B4F8B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CE442E49DBEBA3DF01E1148A /* watchOS */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3B36F542ABA4C9C996D03873 /* AgedcareWatchApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 94AE5146FBC0D9464E230BDD /* Build configuration list for PBXNativeTarget "AgedcareWatchApp" */;
+			buildPhases = (
+				59FED4EDAB6981F66C5D54AD /* Sources */,
+				71E45D76675A8D4D1C042341 /* Frameworks */,
+				E933CF011194A268FC96A362 /* Resources */,
+				83B710D0645C035F9B74DD84 /* Embed Watch Extension */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				42900D1D84B55E1553531D7D /* PBXTargetDependency */,
+			);
+			name = AgedcareWatchApp;
+			productName = AgedcareWatchApp;
+			productReference = F9C8F4438820B171F503CADE /* AgedcareWatchApp.app */;
+			productType = "com.apple.product-type.application.watchapp2";
+		};
 		5E0699CA2FAFEFEA008E21DB /* Agedcare-shared */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 5E0699EF2FAFEFEC008E21DB /* Build configuration list for PBXNativeTarget "Agedcare-shared" */;
@@ -162,6 +273,21 @@
 			productReference = 5E0699E62FAFEFEC008E21DB /* Agedcare-sharedUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		6879EF464641FCF20CF3E1F1 /* AgedcareWatchExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A06883706F3242B71D6F48EA /* Build configuration list for PBXNativeTarget "AgedcareWatchExtension" */;
+			buildPhases = (
+				BE3564128E1F299AC1B11A93 /* Sources */,
+				0887D70E1824C665DBC03D67 /* Frameworks */,
+				C2501E9F8EC333ECB1788F12 /* Resources */,
+			);
+			buildRules = (
+			);
+			name = AgedcareWatchExtension;
+			productName = AgedcareWatchExtension;
+			productReference = A43658D73978BD6B0DF20306 /* AgedcareWatchExtension.appex */;
+			productType = "com.apple.product-type.watchkit2-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -170,7 +296,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 2650;
 				ORGANIZATIONNAME = wcs;
 				TargetAttributes = {
 					5E0699CA2FAFEFEA008E21DB = {
@@ -203,6 +329,8 @@
 				5E0699CA2FAFEFEA008E21DB /* Agedcare-shared */,
 				5E0699DB2FAFEFEC008E21DB /* Agedcare-sharedTests */,
 				5E0699E52FAFEFEC008E21DB /* Agedcare-sharedUITests */,
+				3B36F542ABA4C9C996D03873 /* AgedcareWatchApp */,
+				6879EF464641FCF20CF3E1F1 /* AgedcareWatchExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -223,9 +351,24 @@
 			files = (
 			);
 		};
+		C2501E9F8EC333ECB1788F12 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		E933CF011194A268FC96A362 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		59FED4EDAB6981F66C5D54AD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 		5E0699C72FAFEFEA008E21DB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
@@ -241,9 +384,23 @@
 			files = (
 			);
 		};
+		BE3564128E1F299AC1B11A93 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				A1CB5D67393B3BFE1E75FBB4 /* WatchSessionManager.swift in Sources */,
+				BA9B6CE0917E32BE616681B0 /* AgedcareWatchApp.swift in Sources */,
+				BD9F261AA017172D718A6FB9 /* WatchDashboardView.swift in Sources */,
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		42900D1D84B55E1553531D7D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = AgedcareWatchExtension;
+			target = 6879EF464641FCF20CF3E1F1 /* AgedcareWatchExtension */;
+			targetProxy = 25CC0BB218BFCC4C90602AD5 /* PBXContainerItemProxy */;
+		};
 		5E0699DE2FAFEFEC008E21DB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 5E0699CA2FAFEFEA008E21DB /* Agedcare-shared */;
@@ -257,6 +414,32 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		54B47CA0E42438A8D32AA6A6 /* Debug configuration for PBXNativeTarget "AgedcareWatchExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = AgedcareWatchExtension/AgedcareWatchExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 118;
+				DEVELOPMENT_TEAM = TM2WG7HH96;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AgedcareWatchExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-shared.watchkitapp.watchkitextension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
 		5E0699F02FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-shared" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -264,23 +447,36 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Agedcare-shared/Agedcare_shared.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 118;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Agedcare-shared/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "agedcare-shared";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				INFOPLIST_KEY_NSCameraUsageDescription = "AgedCare Monitor uses the camera for AI-powered fall detection, room monitoring, and capturing photo evidence for incident reports.";
+				INFOPLIST_KEY_NSCriticalMessagingUsageDescription = "AgedCare Monitor sends time-sensitive critical alerts to staff and caregivers when a resident triggers SOS or when AI monitoring detects a possible fall or distress event.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "AgedCare Monitor uses Face ID to securely authenticate staff members.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "AgedCare Monitor reads health data to track resident vitals such as heart rate, blood oxygen, and step count for anomaly detection.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AgedCare Monitor writes health data to record monitoring measurements and vitals collected during care sessions.";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "AgedCare Monitor uses HomeKit temperature sensors and thermostats to show actual resident room temperatures when compatible accessories are configured.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "AgedCare Monitor uses the local network to communicate with facility monitoring devices and sensors.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "AgedCare Monitor uses your location to identify the facility, associate alerts with the correct site, and display accurate local weather conditions including outdoor temperature and humidity to help staff maintain comfortable room temperatures for residents.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "AgedCare Monitor uses the microphone for real-time audio monitoring, distress sound detection, and voice-based keyword alerts in resident rooms.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "AgedCare Monitor saves captured photos and video recordings to your photo library for record-keeping.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "AgedCare Monitor accesses your photo library to attach images to incident reports and care notes.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "AgedCare Monitor uses speech recognition to transcribe resident audio for keyword detection such as calls for help or distress phrases.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-shared";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -298,25 +494,38 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Agedcare-shared/Agedcare_shared.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Agedcare-shared/Agedcare_shared_release.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 118;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Agedcare-shared/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "agedcare-shared";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				INFOPLIST_KEY_NSCameraUsageDescription = "AgedCare Monitor uses the camera for AI-powered fall detection, room monitoring, and capturing photo evidence for incident reports.";
+				INFOPLIST_KEY_NSCriticalMessagingUsageDescription = "AgedCare Monitor sends time-sensitive critical alerts to staff and caregivers when a resident triggers SOS or when AI monitoring detects a possible fall or distress event.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "AgedCare Monitor uses Face ID to securely authenticate staff members.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "AgedCare Monitor reads health data to track resident vitals such as heart rate, blood oxygen, and step count for anomaly detection.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "AgedCare Monitor writes health data to record monitoring measurements and vitals collected during care sessions.";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "AgedCare Monitor uses HomeKit temperature sensors and thermostats to show actual resident room temperatures when compatible accessories are configured.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "AgedCare Monitor uses the local network to communicate with facility monitoring devices and sensors.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "AgedCare Monitor uses your location to identify the facility, associate alerts with the correct site, and display accurate local weather conditions including outdoor temperature and humidity to help staff maintain comfortable room temperatures for residents.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "AgedCare Monitor uses the microphone for real-time audio monitoring, distress sound detection, and voice-based keyword alerts in resident rooms.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "AgedCare Monitor saves captured photos and video recordings to your photo library for record-keeping.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "AgedCare Monitor accesses your photo library to attach images to incident reports and care notes.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "AgedCare Monitor uses speech recognition to transcribe resident audio for keyword detection such as calls for help or distress phrases.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-shared";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -388,6 +597,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -445,6 +655,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -455,11 +666,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 118;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-sharedTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -477,11 +688,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 118;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-sharedTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -498,10 +709,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 118;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-sharedUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -518,10 +729,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 118;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-sharedUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -531,6 +742,72 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "Agedcare-shared";
+			};
+			name = Release;
+		};
+		6B9042B4BABFD3B6AE675A81 /* Release configuration for PBXNativeTarget "AgedcareWatchApp" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 118;
+				DEVELOPMENT_TEAM = TM2WG7HH96;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AgedcareWatch/Info.plist;
+				MARKETING_VERSION = 1.0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-shared.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		7319D95DE17B10AF5AE1DFF6 /* Debug configuration for PBXNativeTarget "AgedcareWatchApp" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 118;
+				DEVELOPMENT_TEAM = TM2WG7HH96;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AgedcareWatch/Info.plist;
+				MARKETING_VERSION = 1.0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-shared.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		E916CC38567AD3FCBE4766CF /* Release configuration for PBXNativeTarget "AgedcareWatchExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = AgedcareWatchExtension/AgedcareWatchExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 118;
+				DEVELOPMENT_TEAM = TM2WG7HH96;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AgedcareWatchExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.4;
+				PRODUCT_BUNDLE_IDENTIFIER = "wcs.Agedcare-shared.watchkitapp.watchkitextension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Release;
 		};
@@ -566,6 +843,22 @@
 			buildConfigurations = (
 				5E0699F82FAFEFEC008E21DB /* Debug configuration for PBXNativeTarget "Agedcare-sharedUITests" */,
 				5E0699F92FAFEFEC008E21DB /* Release configuration for PBXNativeTarget "Agedcare-sharedUITests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		94AE5146FBC0D9464E230BDD /* Build configuration list for PBXNativeTarget "AgedcareWatchApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B9042B4BABFD3B6AE675A81 /* Release configuration for PBXNativeTarget "AgedcareWatchApp" */,
+				7319D95DE17B10AF5AE1DFF6 /* Debug configuration for PBXNativeTarget "AgedcareWatchApp" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		A06883706F3242B71D6F48EA /* Build configuration list for PBXNativeTarget "AgedcareWatchExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E916CC38567AD3FCBE4766CF /* Release configuration for PBXNativeTarget "AgedcareWatchExtension" */,
+				54B47CA0E42438A8D32AA6A6 /* Debug configuration for PBXNativeTarget "AgedcareWatchExtension" */,
 			);
 			defaultConfigurationName = Release;
 		};

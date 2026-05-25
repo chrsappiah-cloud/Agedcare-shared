@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Accessibility
 
 @MainActor
 final class AccessibilityManager: ObservableObject {
@@ -10,7 +11,7 @@ final class AccessibilityManager: ObservableObject {
   @Published var isReduceTransparencyEnabled = UIAccessibility.isReduceTransparencyEnabled
   @Published var isBoldTextEnabled = UIAccessibility.isBoldTextEnabled
   @Published var isHighContrastEnabled = UIAccessibility.isDarkerSystemColorsEnabled
-  @Published var isButtonShapesEnabled = UIAccessibility.buttonShapesEnabled
+  @Published var isButtonShapesEnabled = AccessibilityManager.currentButtonShapesEnabled
   @Published var preferredContentSizeCategory: UIContentSizeCategory = UIApplication.shared.preferredContentSizeCategory
 
   private var observers: [NSObjectProtocol] = []
@@ -30,8 +31,8 @@ final class AccessibilityManager: ObservableObject {
       center.addObserver(forName: UIAccessibility.boldTextStatusDidChangeNotification, object: nil, queue: .main) { _ in
         Task { @MainActor in AccessibilityManager.shared.isBoldTextEnabled = UIAccessibility.isBoldTextEnabled }
       },
-      center.addObserver(forName: UIAccessibility.buttonShapesEnabledStatusDidChangeNotification, object: nil, queue: .main) { _ in
-        Task { @MainActor in AccessibilityManager.shared.isButtonShapesEnabled = UIAccessibility.buttonShapesEnabled }
+      center.addObserver(forName: AccessibilityManager.buttonShapesEnabledStatusDidChangeNotification, object: nil, queue: .main) { _ in
+        Task { @MainActor in AccessibilityManager.shared.isButtonShapesEnabled = AccessibilityManager.currentButtonShapesEnabled }
       },
       center.addObserver(forName: UIContentSizeCategory.didChangeNotification, object: nil, queue: .main) { _ in
         Task { @MainActor in AccessibilityManager.shared.preferredContentSizeCategory = UIApplication.shared.preferredContentSizeCategory }
@@ -75,5 +76,21 @@ final class AccessibilityManager: ObservableObject {
 
   func screenChanged() {
     UIAccessibility.post(notification: .screenChanged, argument: nil)
+  }
+
+  private static var currentButtonShapesEnabled: Bool {
+    if #available(iOS 26.1, *) {
+      AccessibilitySettings.showBordersEnabled
+    } else {
+      UIAccessibility.buttonShapesEnabled
+    }
+  }
+
+  private static var buttonShapesEnabledStatusDidChangeNotification: Notification.Name {
+    if #available(iOS 26.1, *) {
+      AccessibilitySettings.showBordersEnabledStatusDidChangeNotification
+    } else {
+      UIAccessibility.buttonShapesEnabledStatusDidChangeNotification
+    }
   }
 }

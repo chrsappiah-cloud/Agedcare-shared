@@ -223,3 +223,66 @@ public struct AIAnalyzeMediaRequest: Encodable {
     self.transcribed_text = transcribed_text
   }
 }
+
+public struct IncidentMediaSyncRequest: Encodable {
+  public let p_incident_id: UUID
+  public let p_facility_id: UUID
+  public let p_resident_id: UUID?
+  public let p_incident_type: String
+  public let p_recorded_at: Date
+  public let p_duration_seconds: Double
+  public let p_local_filename: String
+  public let p_snapshot_filename: String?
+  public let p_external_media_url: String?
+  public let p_analysis_id: String?
+  public let p_summary: String?
+  public let p_cloudkit_record_name: String?
+  public let p_sync_status: String
+  public let p_metadata: [String: AnyCodable]
+
+  public init(
+    p_incident_id: UUID,
+    p_facility_id: UUID,
+    p_resident_id: UUID?,
+    p_incident_type: String,
+    p_recorded_at: Date,
+    p_duration_seconds: Double,
+    p_local_filename: String,
+    p_snapshot_filename: String? = nil,
+    p_external_media_url: String? = nil,
+    p_analysis_id: String? = nil,
+    p_summary: String? = nil,
+    p_cloudkit_record_name: String? = nil,
+    p_sync_status: String,
+    p_metadata: [String: AnyCodable]
+  ) {
+    self.p_incident_id = p_incident_id
+    self.p_facility_id = p_facility_id
+    self.p_resident_id = p_resident_id
+    self.p_incident_type = p_incident_type
+    self.p_recorded_at = p_recorded_at
+    self.p_duration_seconds = p_duration_seconds
+    self.p_local_filename = p_local_filename
+    self.p_snapshot_filename = p_snapshot_filename
+    self.p_external_media_url = p_external_media_url
+    self.p_analysis_id = p_analysis_id
+    self.p_summary = p_summary
+    self.p_cloudkit_record_name = p_cloudkit_record_name
+    self.p_sync_status = p_sync_status
+    self.p_metadata = p_metadata
+  }
+}
+
+public struct IncidentMediaSyncResponse: Decodable {
+  public let incidentID: String
+  public let syncedAt: Date?
+  public let externalMediaURL: String?
+  public let cloudKitRecordName: String?
+
+  enum CodingKeys: String, CodingKey {
+    case incidentID = "incident_id"
+    case syncedAt = "synced_at"
+    case externalMediaURL = "external_media_url"
+    case cloudKitRecordName = "cloudkit_record_name"
+  }
+}

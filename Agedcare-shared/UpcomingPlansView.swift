@@ -236,7 +236,7 @@ struct UpcomingPlansView: View {
                 HStack {
                     Image(systemName: "airplane")
                         .foregroundColor(.blue)
-                    Text("Invite Testers via TestFlight")
+                    Text("Open Testing Subscription Programme")
                         .font(.subheadline)
                         .foregroundColor(AppTheme.textPrimary)
                     Spacer()
