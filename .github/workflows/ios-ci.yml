@@ -1,11 +1,11 @@
 name: iOS CI
 
+# Legacy alias: delegates to the same gates as ci.yml on feature branches.
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, "feature/**", "fix/**", "release/**", "ci/**", "chore/**"]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:

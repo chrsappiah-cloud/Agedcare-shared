@@ -150,6 +150,30 @@ xcrun simctl io <UUID> screenshot marketing/out/hero_panel.png
 3. Confirm the build appears in the version overview
 4. Save
 
+### Phase 8b: Pre-Order Setup (Must Be Done BEFORE Submission)
+
+**Important:** For a brand-new app (never released), pre-order must be configured
+**before** submitting for App Review — not after.
+
+**Path:** App Store Connect → **Agedcare-shared** → **Pricing and Availability** → **App Availability**
+
+**Correct workflow (use the wizard, not the toggles):**
+
+1. Click **Set Up Availability**
+2. Select **Publish as Pre-Order** → **Next**
+3. Set **Release Date** → **May 26, 2026** (2–180 days from today)
+4. Select **countries or regions** (all territories, or just 27 EU countries) → **Next**
+5. Click **Confirm**
+6. Return to **Pricing and Availability** → click platform version **1.0.4 (118)**
+7. Complete all metadata, then **Submit for App Review**
+8. After Apple approves → **Release This Version** → **Confirm**
+9. Pre-order appears on App Store (up to 24 hours)
+
+> ⚠️ If you got "An error has occurred. Try again later.", you likely tried to
+> set pre-order from the version page toggles instead of the **App Availability**
+> wizard. Go to **Pricing and Availability → App Availability → Set Up Availability**
+> and follow the wizard instead.
+
 ### Phase 9: Submission — **FINAL STEP**
 
 **Open:** App Store Connect → **Agedcare-shared** → **App Store** tab → version **1.0.4**

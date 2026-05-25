@@ -27,11 +27,13 @@
   └─ Need: 6 images at 1284 × 2778 pixels (6.7" iPhone, portrait)
   └─ Heroes: Hero panel, Resident shell, Staff dashboard, Alert, Settings, Watch
 
-  STEP 3: Complete Metadata (📋 ~30-45 min)
+  STEP 3: Complete Metadata + Pre-Order (📋 ~30-45 min)
   └─ Open: App Store Connect → Agedcare-shared → App Store → Version 1.0.4
   └─ Copy from: marketing/appstore/INFLIGHT_PASTE.txt (all fields ready)
   └─ Paste into: App name, description, keywords, promotional text, URLs
   └─ Upload: 6 screenshots, set age rating (17+), fill review notes
+  └─ Before submitting: go to **Pricing and Availability → App Availability → Set Up Availability**
+  └─ Select **Publish as Pre-Order** → release **May 26, 2026** → choose territories → Confirm
 
   STEP 4: Attach Build & Set Release (⚙️ ~5 min)
   └─ Click: "+ Build" → select "1.0.4 (118)"
@@ -166,7 +168,9 @@ App Name:               AgedCare Monitor
 Subtitle:              Dementia & Fall Monitoring
 Category:              Medical (Primary), Health & Fitness (Secondary)
 Age Rating:            17+ (Mature Content)
-Region Availability:   All
+Region Availability:   All (175+ regions, not limited to 27 EU countries)
+Pre-Order:             Enabled — release date May 26, 2026
+GDPR/DSA:              Compliant — privacy policy covers EU data rights
 
 Contact Information:   Christopher Appiah-Thompson
                       christopher.appiahthompson@myworldclass.org

@@ -144,6 +144,7 @@ Paste from `05_appstore_form_fields.md`:
 - Price: **Free** (subscriptions via StoreKit)
 
 **Content rights — third-party content:** **No**
+- Availability: **All territories including all EU member states**
 
 **Phased release:** **On** (automatic updates after approval)
 

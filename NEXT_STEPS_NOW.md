@@ -44,7 +44,9 @@ marketing/out/appstore-ipad13/
 **Required fixes from App Store Connect before review can start:**
 
 - [ ] **Primary category** → set to **Medical**
-- [ ] **Pricing** → set price tier to **Free**
+- [ ] **Pricing and Availability** → set **Price Tier** → **Free** → **Save**
+- [ ] **App Availability** → **Set Up Availability** → select **Publish as Pre-Order** → **Next**
+- [ ] Set **Release Date** → **May 26, 2026** → choose territories (all or 27 EU) → **Confirm**
 - [ ] **App Privacy** → must be completed by an **Admin**
 - [ ] **13-inch iPad screenshot** → upload from `marketing/out/appstore-ipad13/` if ASC still shows that requirement
 

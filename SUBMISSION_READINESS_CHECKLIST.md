@@ -97,8 +97,21 @@ Once TestFlight build is ready, complete these in order:
 
 | Field | Value | Note |
 |-------|-------|------|
-| **Price Tier** | Free (or tier w/ in-app purchases) | Configure subscriptions in App Store Connect → **In-App Purchases** |
-| **Availability** | All regions | Default |
+| **Price Tier** | Free | Set to **Free** (monetize via in-app subscriptions: Care Pro / Care Team) |
+| **Availability** | All territories (or select 27 EU countries) | You can choose specific territories for pre-order |
+| **EU Compliance** | GDPR, DSA, VAT handled | Privacy policy covers EU rights; account deletion in-app; trader info on Apple Developer account |
+
+**Action in App Store Connect (correct flow for a new app):**
+1. Go to **Pricing and Availability** → **App Availability** → **Set Up Availability**
+2. Select **Publish as Pre-Order** → **Next**
+3. Set **Release Date** → **May 26, 2026** → **Next**
+4. Select **countries or regions** (all territories, or just the 27 EU countries) → **Next**
+5. Click **Confirm**
+6. Return to **Pricing and Availability** → click platform version **1.0.4 (118)**
+7. Fill all metadata then **Submit for App Review**
+8. After approval → **Release This Version**
+
+> ⚠️ For a brand-new app, pre-order MUST be configured via **App Availability** wizard BEFORE submitting for review — not from the version page.
 
 **Status:** ⏳ Ready
 

@@ -32,11 +32,57 @@ All character counts assume the App Store Connect 2026 layout limits.
 ## Pricing & availability
 
 - **Price tier**: Free (with in-app subscriptions for Care Pro / Care Team).
-- **Availability**: All territories; **Australia first** for the pilot wave.
+- **Availability**: **All territories (not just 27 EU countries)**.
+  - In App Store Connect → **Pricing and Availability** → set **Available in all territories**.
+  - Do NOT select only 27 countries — there is no benefit to limiting. Select **all 175+ regions**.
+  - No region-specific exclusions. The app is made available worldwide with no territorial restrictions.
+- **EU-specific compliance**:
+  - **GDPR**: Privacy policy at `https://wcs-full.vercel.app/privacy` covers EU data subject rights (access, erasure, portability, objection). Account deletion is available in-app at Settings → Account → Delete Account.
+  - **Digital Services Act (DSA)**: Trader information (name, address, contact) is on file in the Apple Developer account under Christopher Appiah-Thompson, christopher.appiahthompson@myworldclass.org.
+  - **VAT**: Pricing is set to **Free** (no charge for download). In-app subscription prices are managed through Apple's StoreKit and follow standard App Store EU VAT handling.
+  - **EU Consumer Rights**: 14-day cooling-off period and right of withdrawal are handled by Apple's standard App Store refund process for paid subscriptions.
 - **In-app purchases / subscriptions**:
   - `wcs.agedcare.carePro.monthly`  → Care Pro plan
   - `wcs.agedcare.careTeam.monthly` → Care Team plan
   - (Defined in `SubscriptionService.swift` and `SubscriptionTier`.)
+
+## Pre-order setup (before submitting for App Review)
+
+**Goal:** Enable pre-order for release on **May 26, 2026** in **all territories (or the 27 EU countries if preferred).**
+
+**Important:** For a brand-new app (never released on any App Store), you must
+configure pre-order **before** submitting for App Review, not after.
+
+### Correct App Store Connect workflow
+
+**Path:** App Store Connect → **Apps** → **AgedCare Monitor** → **Pricing and Availability** → **App Availability**
+
+1. Click **Set Up Availability**
+2. Select **Publish as Pre-Order** → **Next**
+3. Set **Release Date** → **May 26, 2026** (must be 2–180 days from today)
+4. Select **countries or regions** → you can choose **specific countries** (e.g. the 27 EU member states) or **all territories** → **Next**
+5. Click **Confirm**
+6. Return to **Pricing and Availability** → click the platform version **1.0.4 (118)**
+7. Fill all required metadata, screenshots, age rating, app privacy
+8. **Submit for App Review** (pre-order is attached to the submission)
+9. After Apple approves → click **Release This Version** → **Confirm**
+10. Pre-order appears on the App Store within 24 hours
+
+### Why "An error has occurred. Try again later."
+
+Possible causes:
+- You tried to set pre-order from the version page instead of **Pricing and Availability → App Availability → Set Up Availability** (the correct entry point for a new app)
+- You selected **Available in all territories** AND tried to set pre-order simultaneously — the correct flow is to use the **Set Up Availability** wizard which handles both at once
+- Missing prerequisites: screenshots not uploaded, build not processed, or metadata incomplete
+- Release date is less than 2 days away (today is May 24; May 26 is exactly 2 days — this should be fine)
+
+**Fix:** Go to **Pricing and Availability → App Availability → Set Up Availability** and follow the wizard step by step. Do NOT use the "Available in all territories" toggle — use the **Publish as Pre-Order** wizard instead.
+
+### After pre-order is live:
+- Customers see "Pre-order" on the App Store listing
+- Paid customers are **not charged** until May 26, 2026
+- On release day, the app auto-downloads to pre-orderers' devices
+- If you later release in additional territories, you cannot set up pre-order for those territories (once released, pre-order is unavailable there)
 
 ## Promotional text (170 char max, can be updated without resubmission)
 

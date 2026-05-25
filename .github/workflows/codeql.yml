@@ -2,7 +2,7 @@ name: CodeQL Security Scan
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**", "fix/**", "release/**", "ci/**", "chore/**"]
   pull_request:
     branches: [main]
   schedule:
